@@ -20,8 +20,11 @@ import {
   isImageRef,
   createImageRef,
   type ImageResult,
-  type IImageStorageService
+  type IImageStorageService,
+  type PromptAssetBinding,
+  type PromptSessionOrigin,
 } from '@prompt-optimizer/core'
+import { createSessionAssetBindingState } from './sessionAssetBinding'
 import {
   IMAGE_IMAGE2IMAGE_SESSION_KEY,
   computeStableImageId,
@@ -98,6 +101,8 @@ export interface ImageImage2ImageSessionState {
   selectedTemplateId: string | null
   selectedIterateTemplateId: string | null
   lastActiveAt: number
+  assetBinding?: PromptAssetBinding
+  origin?: PromptSessionOrigin
 }
 
 /**
@@ -142,6 +147,8 @@ const createDefaultState = (): ImageImage2ImageSessionState => ({
   selectedTemplateId: null,
   selectedIterateTemplateId: null,
   lastActiveAt: Date.now(),
+  assetBinding: undefined,
+  origin: undefined,
 })
 
 export const useImageImage2ImageSession = defineStore('imageImage2ImageSession', () => {
@@ -185,6 +192,16 @@ export const useImageImage2ImageSession = defineStore('imageImage2ImageSession',
   const selectedTemplateId = ref<string | null>(null)
   const selectedIterateTemplateId = ref<string | null>(null)
   const lastActiveAt = ref(Date.now())
+  const assetBindingState = createSessionAssetBindingState(
+    () => {
+      lastActiveAt.value = Date.now()
+    },
+    () => {
+      void saveSession().catch((error) => {
+        console.error('[ImageImage2ImageSession] Failed to auto-save asset binding:', error)
+      })
+    },
+  )
 
   const updatePrompt = (prompt: string) => {
     if (originalPrompt.value === prompt) return
@@ -202,6 +219,10 @@ export const useImageImage2ImageSession = defineStore('imageImage2ImageSession',
     const nextReasoning = payload.reasoning || ''
     const nextChainId = payload.chainId
     const nextVersionId = payload.versionId
+
+    if (!nextChainId && !nextVersionId) {
+      assetBindingState.clearAssetBindingWithoutPersist()
+    }
 
     const changed =
       optimizedPrompt.value !== nextOptimizedPrompt ||
@@ -389,7 +410,33 @@ export const useImageImage2ImageSession = defineStore('imageImage2ImageSession',
     selectedImageModelKey.value = defaultState.selectedImageModelKey
     selectedTemplateId.value = defaultState.selectedTemplateId
     selectedIterateTemplateId.value = defaultState.selectedIterateTemplateId
+    assetBindingState.resetAssetBinding()
     lastActiveAt.value = defaultState.lastActiveAt
+  }
+
+  const clearContent = (options: { persist?: boolean } = {}) => {
+    const defaultState = createDefaultState()
+    originalPrompt.value = defaultState.originalPrompt
+    optimizedPrompt.value = defaultState.optimizedPrompt
+    reasoning.value = defaultState.reasoning
+    chainId.value = defaultState.chainId
+    versionId.value = defaultState.versionId
+    temporaryVariables.value = defaultState.temporaryVariables
+    inputImageB64.value = defaultState.inputImageB64
+    inputImageId.value = defaultState.inputImageId
+    inputImageMime.value = defaultState.inputImageMime
+    originalImageResult.value = defaultState.originalImageResult
+    optimizedImageResult.value = defaultState.optimizedImageResult
+    testVariantResults.value = defaultState.testVariantResults
+    testVariantLastRunFingerprint.value = defaultState.testVariantLastRunFingerprint
+    evaluationResults.value = defaultState.evaluationResults
+    assetBindingState.clearAssetBindingWithoutPersist()
+    lastActiveAt.value = Date.now()
+    if (options.persist !== false) {
+      void saveSession().catch((error) => {
+        console.error('[ImageImage2ImageSession] Failed to persist cleared content:', error)
+      })
+    }
   }
 
   /**
@@ -625,6 +672,7 @@ export const useImageImage2ImageSession = defineStore('imageImage2ImageSession',
         selectedTemplateId: selectedTemplateId.value,
         selectedIterateTemplateId: selectedIterateTemplateId.value,
         lastActiveAt: lastActiveAt.value,
+        ...assetBindingState.persistedAssetBinding(),
       }
 
       await $services.preferenceService.set(IMAGE_IMAGE2IMAGE_SESSION_KEY, snapshot)
@@ -791,6 +839,7 @@ export const useImageImage2ImageSession = defineStore('imageImage2ImageSession',
          selectedImageModelKey.value = typeof parsed.selectedImageModelKey === 'string' ? parsed.selectedImageModelKey : ''
          selectedTemplateId.value = typeof parsed.selectedTemplateId === 'string' ? parsed.selectedTemplateId : null
           selectedIterateTemplateId.value = typeof parsed.selectedIterateTemplateId === 'string' ? parsed.selectedIterateTemplateId : null
+          assetBindingState.restoreAssetBinding(parsed)
           lastActiveAt.value = Date.now()
 
           // 如果 variants 的 modelKey 为空，尝试用 legacy selectedImageModelKey 填充一次
@@ -839,6 +888,8 @@ export const useImageImage2ImageSession = defineStore('imageImage2ImageSession',
     selectedTemplateId,
     selectedIterateTemplateId,
     lastActiveAt,
+    assetBinding: assetBindingState.assetBinding,
+    origin: assetBindingState.origin,
 
     // ========== 更新方法 ==========
     updatePrompt,
@@ -862,6 +913,9 @@ export const useImageImage2ImageSession = defineStore('imageImage2ImageSession',
     deleteTemporaryVariable,
     clearTemporaryVariables,
 
+    clearContent,
+    updateAssetBinding: assetBindingState.updateAssetBinding,
+    clearAssetBinding: assetBindingState.clearAssetBinding,
     reset,
 
     // ========== 持久化方法 ==========

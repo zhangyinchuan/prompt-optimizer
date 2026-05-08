@@ -37,6 +37,10 @@
             />
           </NFormItem>
 
+          <NText v-if="currentProviderHint" depth="3" style="display: block; margin: -8px 0 12px 0; line-height: 1.5;">
+            {{ currentProviderHint }}
+          </NText>
+
           <NFormItem
             v-for="field in connectionFields"
             :key="field.name"
@@ -45,7 +49,20 @@
             <template v-if="field.name === 'baseURL'" #label>
               <NSpace align="center" :size="4">
                 <span>{{ t('modelManager.apiUrl') }}</span>
-                <NText depth="3" :title="t('modelManager.apiUrlHint')" style="cursor: help;">?</NText>
+                <NTooltip :show-arrow="false" placement="top">
+                  <template #trigger>
+                    <NButton
+                      class="api-url-help-button"
+                      quaternary
+                      circle
+                      size="tiny"
+                      :aria-label="t('modelManager.apiUrlHintAriaLabel')"
+                    >
+                      ?
+                    </NButton>
+                  </template>
+                  <span class="api-url-help-text">{{ t('modelManager.apiUrlHint') }}</span>
+                </NTooltip>
               </NSpace>
             </template>
 
@@ -71,7 +88,15 @@
               </NSpace>
             </template>
 
-            <template v-if="field.type === 'string'">
+            <template v-if="field.type === 'string' && field.options?.length">
+              <NSelect
+                v-model:value="form.connectionConfig[field.name] as string"
+                :options="field.options"
+                :placeholder="field.placeholder"
+                :required="field.required"
+              />
+            </template>
+            <template v-else-if="field.type === 'string'">
               <NInput
                 v-model:value="form.connectionConfig[field.name] as string"
                 :type="field.name.toLowerCase().includes('key') ? 'password' : 'text'"
@@ -267,6 +292,29 @@ const currentProviderApiKeyUrl = computed(() => {
   return manager.selectedProvider.value?.apiKeyUrl || null
 })
 
+const currentProviderHint = computed(() => {
+  const provider = manager.selectedProvider.value
+  if (!provider) return ''
+
+  if (provider.id === 'openai-compatible') {
+    return t('modelManager.provider.customApiHint')
+  }
+
+  if (provider.id === 'openai') {
+    return t('modelManager.provider.openaiHint')
+  }
+
+  if (provider.id === 'dashscope') {
+    return t('modelManager.provider.dashscopeHint')
+  }
+
+  if (provider.id === 'minimax') {
+    return t('modelManager.provider.minimaxHint')
+  }
+
+  return provider.description || ''
+})
+
 const resolveConnectionFieldLabel = (fieldName: string) => {
   return resolveTextConnectionFieldLabel(fieldName, t)
 }
@@ -361,3 +409,20 @@ const onProviderChange = (providerId: string) => {
   })
 }
 </script>
+
+<style scoped>
+.api-url-help-button {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.api-url-help-text {
+  display: block;
+  max-width: 360px;
+  line-height: 1.5;
+  white-space: normal;
+}
+</style>

@@ -426,8 +426,8 @@ describe('useAppPromptGardenImport', () => {
       expect(proMultiMessageSession.chainId).toBe('')
       expect(proMultiMessageSession.versionId).toBe('')
 
-      // Variables injected from schema; existing values preserved.
-      expect(proMultiMessageSession.getTemporaryVariable('topic')).toBe('pizza')
+      // Variables are re-seeded from the import payload after clear-content runs.
+      expect(proMultiMessageSession.getTemporaryVariable('topic')).toBe('ice cream')
       expect(proMultiMessageSession.getTemporaryVariable('format')).toBe('markdown')
       expect(proMultiMessageSession.getTemporaryVariable('tone')).toBe('')
       expect(proMultiMessageSession.getTemporaryVariable('obsolete')).toBeUndefined()
@@ -581,8 +581,8 @@ describe('useAppPromptGardenImport', () => {
       expect(proVariableSession.testVariantResults.a).toEqual({ result: '', reasoning: '' })
       expect(proVariableSession.testVariantResults.b).toEqual({ result: '', reasoning: '' })
 
-      // Variables injected from schema; existing values preserved.
-      expect(proVariableSession.getTemporaryVariable('name')).toBe('Bob')
+      // Variables are re-seeded from the import payload after clear-content runs.
+      expect(proVariableSession.getTemporaryVariable('name')).toBe('Alice')
       expect(proVariableSession.getTemporaryVariable('tone')).toBe('')
       expect(proVariableSession.getTemporaryVariable('obsolete')).toBeUndefined()
 
@@ -1005,7 +1005,7 @@ describe('useAppPromptGardenImport', () => {
     }
   })
 
-  it('applies selected exampleId parameters when provided', async () => {
+  it('applies selected inline example suffix parameters when provided', async () => {
     const { pinia } = createTestPinia()
 
     // Avoid console.warn from useToast (tests fail on console.warn).
@@ -1031,8 +1031,7 @@ describe('useAppPromptGardenImport', () => {
     const isLoadingExternalData = ref(false)
 
     const query: LocationQuery = {
-      importCode: 'NB-PVAR-EX-002',
-      exampleId: 'ex-b',
+      importCode: 'NB-PVAR-EX-002@ex-b',
     }
 
     const currentRoute = ref<RouteLocationNormalizedLoaded>(makeRoute('/basic/system', query))
@@ -1110,6 +1109,7 @@ describe('useAppPromptGardenImport', () => {
       await waitForCondition(() => isLoadingExternalData.value === false)
 
       expect(currentRoute.value.path).toBe('/pro/variable')
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('http://garden.local/api/prompt-source/NB-PVAR-EX-002')
       expect(proVariableSession.getTemporaryVariable('name')).toBe('Charlie')
 
       // Import params removed from the URL.
@@ -1147,6 +1147,18 @@ describe('useAppPromptGardenImport', () => {
     const proVariableSession = useProVariableSession(pinia)
     const imageText2ImageSession = useImageText2ImageSession(pinia)
     const imageImage2ImageSession = useImageImage2ImageSession(pinia)
+
+    imageText2ImageSession.updateOptimizedResult({
+      optimizedPrompt: 'old-opt',
+      reasoning: 'old-r',
+      chainId: 'old-chain',
+      versionId: 'old-version',
+    })
+    imageText2ImageSession.testVariantResults = {
+      ...imageText2ImageSession.testVariantResults,
+      a: { result: 'old-a', reasoning: 'old-a-r' },
+      b: { result: 'old-b', reasoning: 'old-b-r' },
+    }
 
     // Existing values should be preserved.
     imageText2ImageSession.setTemporaryVariable('season', 'winter')
@@ -1235,9 +1247,15 @@ describe('useAppPromptGardenImport', () => {
 
       // Prompt imported into image session.
       expect(imageText2ImageSession.originalPrompt).toBe('Draw a {{season}} {{style}} landscape')
+      expect(imageText2ImageSession.optimizedPrompt).toBe('')
+      expect(imageText2ImageSession.reasoning).toBe('')
+      expect(imageText2ImageSession.chainId).toBe('')
+      expect(imageText2ImageSession.versionId).toBe('')
+      expect(imageText2ImageSession.testVariantResults.a).toBeNull()
+      expect(imageText2ImageSession.testVariantResults.b).toBeNull()
 
-      // The variable key exists; existing value preserved.
-      expect(imageText2ImageSession.getTemporaryVariable('season')).toBe('winter')
+      // Variables are re-seeded from the import payload after clear-content runs.
+      expect(imageText2ImageSession.getTemporaryVariable('season')).toBe('')
 
       // Missing variable names are injected as empty strings.
       expect(imageText2ImageSession.getTemporaryVariable('style')).toBe('')
@@ -1276,6 +1294,25 @@ describe('useAppPromptGardenImport', () => {
     const proVariableSession = useProVariableSession(pinia)
     const imageText2ImageSession = useImageText2ImageSession(pinia)
     const imageImage2ImageSession = useImageImage2ImageSession(pinia)
+
+    imageImage2ImageSession.updatePrompt('old prompt')
+    imageImage2ImageSession.updateOptimizedResult({
+      optimizedPrompt: 'old-opt',
+      reasoning: 'old-r',
+      chainId: 'old-chain',
+      versionId: 'old-version',
+    })
+    imageImage2ImageSession.updateInputImage({
+      imageB64: 'old-b64',
+      imageId: null,
+      mimeType: 'image/png',
+    })
+    imageImage2ImageSession.testVariantResults = {
+      ...imageImage2ImageSession.testVariantResults,
+      a: { result: 'old-a', reasoning: 'old-a-r' },
+      b: { result: 'old-b', reasoning: 'old-b-r' },
+    }
+    imageImage2ImageSession.setTemporaryVariable('obsolete', 'should-delete')
 
     const optimizerCurrentVersions = ref<PromptRecordChain['versions']>([makeDummyRecord()])
     const hasRestoredInitialState = ref(false)
@@ -1374,6 +1411,13 @@ describe('useAppPromptGardenImport', () => {
 
       expect(currentRoute.value.path).toBe('/image/image2image')
       expect(imageImage2ImageSession.originalPrompt).toBe('Transform the image')
+      expect(imageImage2ImageSession.optimizedPrompt).toBe('')
+      expect(imageImage2ImageSession.reasoning).toBe('')
+      expect(imageImage2ImageSession.chainId).toBe('')
+      expect(imageImage2ImageSession.versionId).toBe('')
+      expect(imageImage2ImageSession.testVariantResults.a).toBeNull()
+      expect(imageImage2ImageSession.testVariantResults.b).toBeNull()
+      expect(imageImage2ImageSession.getTemporaryVariable('obsolete')).toBeUndefined()
 
       // [0,1,2,3] -> AAECAw==
       expect(imageImage2ImageSession.inputImageB64).toBe('AAECAw==')
@@ -1692,17 +1736,20 @@ describe('useAppPromptGardenImport', () => {
   it('opens save-favorite dialog when saveToFavorites=confirm', async () => {
     const { pinia } = createTestPinia()
 
-    const createReactive = (): MessageReactive => ({
-      destroy: () => {},
+    const loadingDestroy = vi.fn()
+    const createReactive = (destroy = vi.fn()): MessageReactive => ({
+      destroy,
     } as unknown as MessageReactive)
-    setGlobalMessageApi({
+    const messageApi = {
       success: vi.fn(() => createReactive()),
       error: vi.fn(() => createReactive()),
       warning: vi.fn(() => createReactive()),
-      info: vi.fn(() => createReactive()),
-    })
+      info: vi.fn(() => createReactive(loadingDestroy)),
+    }
+    setGlobalMessageApi(messageApi)
 
     const basicSystemSession = useBasicSystemSession(pinia)
+    basicSystemSession.updatePrompt('KEEP WORKSPACE')
     const basicUserSession = useBasicUserSession(pinia)
     const proMultiMessageSession = useProMultiMessageSession(pinia)
     const proVariableSession = useProVariableSession(pinia)
@@ -1805,6 +1852,15 @@ describe('useAppPromptGardenImport', () => {
       await waitForCondition(() => isLoadingExternalData.value === false)
 
       expect(openSaveFavoriteDialog).toHaveBeenCalledTimes(1)
+      expect(messageApi.info).toHaveBeenCalledWith(
+        String(i18n.global.t('common.promptGarden.importingStatus')),
+        expect.objectContaining({
+          duration: 0,
+          closable: false,
+        })
+      )
+      expect(loadingDestroy).toHaveBeenCalledTimes(1)
+      expect(basicSystemSession.prompt).toBe('KEEP WORKSPACE')
       const savedArg = openSaveFavoriteDialog.mock.calls[0]?.[0] as {
         content: string
         prefill?: {
@@ -1836,7 +1892,7 @@ describe('useAppPromptGardenImport', () => {
     }
   })
 
-  it('skips auto-save to favorites when snapshot image persistence fails', async () => {
+  it('auto-saves to favorites with URL media fallback when snapshot image persistence fails', async () => {
     const { pinia } = createTestPinia()
 
     const createReactive = (): MessageReactive => ({
@@ -1850,6 +1906,7 @@ describe('useAppPromptGardenImport', () => {
     })
 
     const basicSystemSession = useBasicSystemSession(pinia)
+    basicSystemSession.updatePrompt('KEEP WORKSPACE')
     const basicUserSession = useBasicUserSession(pinia)
     const proMultiMessageSession = useProMultiMessageSession(pinia)
     const proVariableSession = useProVariableSession(pinia)
@@ -1961,15 +2018,23 @@ describe('useAppPromptGardenImport', () => {
       await replaceDone
       await waitForCondition(() => isLoadingExternalData.value === false)
 
-      expect(favoriteManager.getFavorites).not.toHaveBeenCalled()
-      expect(favoriteManager.addFavorite).not.toHaveBeenCalled()
+      expect(favoriteManager.getFavorites).toHaveBeenCalledTimes(1)
+      expect(basicSystemSession.prompt).toBe('KEEP WORKSPACE')
+      expect(favoriteManager.addFavorite).toHaveBeenCalledTimes(1)
       expect(favoriteManager.updateFavorite).not.toHaveBeenCalled()
+      const favoriteArg = favoriteManager.addFavorite.mock.calls[0]?.[0]
+      expect(favoriteArg?.metadata?.media).toEqual({
+        coverAssetId: undefined,
+        coverUrl: 'http://garden.local/prompt-assets/cover.png',
+        assetIds: [],
+        urls: ['http://garden.local/prompt-assets/show-1.png'],
+      })
     } finally {
       scope.stop()
     }
   })
 
-  it('opens save-favorite dialog without media fallback when snapshot image persistence fails', async () => {
+  it('opens save-favorite dialog with URL media fallback when snapshot image persistence fails', async () => {
     const { pinia } = createTestPinia()
 
     const createReactive = (): MessageReactive => ({
@@ -2097,7 +2162,12 @@ describe('useAppPromptGardenImport', () => {
         }
       }
 
-      expect(savedArg.prefill?.metadata?.media).toBeUndefined()
+      expect(savedArg.prefill?.metadata?.media).toEqual({
+        coverAssetId: undefined,
+        coverUrl: 'http://garden.local/prompt-assets/cover.png',
+        assetIds: [],
+        urls: ['http://garden.local/prompt-assets/show-1.png'],
+      })
     } finally {
       scope.stop()
     }

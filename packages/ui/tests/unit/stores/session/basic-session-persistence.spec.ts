@@ -1,10 +1,42 @@
 import { describe, it, expect, vi } from 'vitest'
 import { useBasicSystemSession } from '../../../../src/stores/session/useBasicSystemSession'
 import { useBasicUserSession } from '../../../../src/stores/session/useBasicUserSession'
-import { createTestPinia } from '../../../utils/pinia-test-helpers'
+import { createPreferenceServiceStub, createTestPinia } from '../../../utils/pinia-test-helpers'
 import { TEMPLATE_SELECTION_KEYS } from '@prompt-optimizer/core'
 
 describe('Session stores (basic) persistence', () => {
+  it('basic-system clearContent removes derived content while preserving workspace selections', () => {
+    const { pinia } = createTestPinia()
+    const store = useBasicSystemSession(pinia)
+
+    store.updatePrompt('prompt')
+    store.updateOptimizedResult({ optimizedPrompt: 'optimized', reasoning: 'reasoning', chainId: 'chain', versionId: 'version' })
+    store.updateTestContent('test input')
+    store.updateOptimizeModel('opt-model')
+    store.updateTestModel('test-model')
+    store.updateTemplate('template')
+    store.updateIterateTemplate('iterate-template')
+    store.setMainSplitLeftPct(42)
+    store.setTestColumnCount(4)
+    store.updateTestVariant('a', { modelKey: 'variant-model' })
+
+    store.clearContent()
+
+    expect(store.prompt).toBe('')
+    expect(store.optimizedPrompt).toBe('')
+    expect(store.reasoning).toBe('')
+    expect(store.chainId).toBe('')
+    expect(store.versionId).toBe('')
+    expect(store.testContent).toBe('')
+    expect(store.testVariantResults.a).toEqual({ result: '', reasoning: '' })
+    expect(store.selectedOptimizeModelKey).toBe('opt-model')
+    expect(store.selectedTestModelKey).toBe('test-model')
+    expect(store.selectedTemplateId).toBe('template')
+    expect(store.selectedIterateTemplateId).toBe('iterate-template')
+    expect(store.layout).toEqual({ mainSplitLeftPct: 42, testColumnCount: 4 })
+    expect(store.testVariants.find((variant) => variant.id === 'a')?.modelKey).toBe('variant-model')
+  })
+
   it('basic-system saveSession writes snapshot to preferenceService', async () => {
     const set = vi.fn(async () => {})
 
@@ -49,6 +81,36 @@ describe('Session stores (basic) persistence', () => {
       selectedTemplateId: 'tpl',
       selectedIterateTemplateId: 'tpl-iter',
     })
+  })
+
+  it('basic-system clearAssetBinding persists removal even when optimized fields are unchanged', () => {
+    const set = vi.fn(async () => {})
+
+    const { pinia } = createTestPinia({
+      preferenceService: createPreferenceServiceStub({ set }),
+    })
+
+    const store = useBasicSystemSession(pinia)
+    store.updateAssetBinding(
+      { assetId: 'asset-basic', versionId: 'v1', status: 'linked' },
+      { kind: 'favorite', id: 'favorite-basic' },
+    )
+    set.mockClear()
+
+    store.clearAssetBinding()
+
+    expect(store.assetBinding).toBeUndefined()
+    expect(store.origin).toBeUndefined()
+    expect(set).toHaveBeenCalled()
+
+    const lastCall = set.mock.calls.at(-1)
+    expect(lastCall?.[0]).toBe('session/v1/basic-system')
+
+    const raw = lastCall?.[1]
+    const saved =
+      typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw as Record<string, unknown> | undefined) || {}
+    expect(saved).not.toHaveProperty('assetBinding')
+    expect(saved).not.toHaveProperty('origin')
   })
 
   it('basic-user restoreSession migrates legacy template selection when missing', async () => {

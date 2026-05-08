@@ -14,7 +14,7 @@
 ![GitHub forks](https://img.shields.io/github/forks/linshenkx/prompt-optimizer?style=flat)
 [![Deploy with Vercel](https://img.shields.io/badge/Vercel-indigo?style=flat&logo=vercel)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flinshenkx%2Fprompt-optimizer)
 
-[在线体验](https://prompt.always200.com) | [快速开始](#快速开始) | [常见问题](#常见问题) | [Chrome插件](https://chromewebstore.google.com/detail/prompt-optimizer/cakkkhboolfnadechdlgdcnjammejlna) | [💖赞助支持](images/other/sponsor_wx.jpg)
+[官网](https://always200.com) | [在线优化器](https://prompt.always200.com) | [提示词库](https://garden.always200.com) | [文档站](https://docs.always200.com) | [快速开始](#快速开始) | [Chrome插件](https://chromewebstore.google.com/detail/prompt-optimizer/cakkkhboolfnadechdlgdcnjammejlna) | [💖赞助支持](images/other/sponsor_wx.jpg)
 
 [开发文档](dev.md) | [Vercel部署指南](docs/user/deployment/vercel.md) | [MCP部署使用说明](docs/user/mcp-server.md) | [DeepWiki文档](https://deepwiki.com/linshenkx/prompt-optimizer) | [ZRead文档](https://zread.ai/linshenkx/prompt-optimizer)
 
@@ -23,6 +23,8 @@
 ## 📖 项目简介
 
 Prompt Optimizer是一个强大的AI提示词优化工具，帮助你编写更好的AI提示词，提升AI输出质量。支持Web应用、桌面应用、Chrome插件和Docker部署四种使用方式。
+
+提示词可以来自手写、模板、本地导入，也可以来自 [Prompt Garden 提示词库](https://garden.always200.com) 这样的来源。Prompt Optimizer 负责把这些提示词继续优化、测试、评估，并沉淀为可复用的提示词资产。
 
 ### 🎥 功能演示
 
@@ -45,8 +47,10 @@ Prompt Optimizer是一个强大的AI提示词优化工具，帮助你编写更�
 - 🎯 **智能优化**：一键优化提示词，支持多轮迭代改进，提升AI回复准确度
 - 📝 **双模式优化**：支持系统提示词优化和用户提示词优化，满足不同使用场景
 - 🔄 **分析与对比评估**：支持分析、单结果评估和多结果对比评估，帮助判断提示词是否真的改进
-- 🤖 **多模型集成**：支持OpenAI、Gemini、DeepSeek、智谱AI、SiliconFlow等主流AI模型
-- 🖼️ **图像生成**：支持文生图（T2I）和图生图（I2I），集成Gemini、Seedream等图像模型
+- 🤖 **多模型集成**：支持OpenAI、Gemini、DeepSeek、智谱AI、SiliconFlow、MiniMax等主流AI模型
+- 🖼️ **图像生成**：支持文生图（T2I）、图生图（I2I）和多图生图，集成Gemini、Seedream等图像模型
+- 🌱 **提示词来源**：可从手写、模板、本地导入或提示词库导入码开始
+- ⭐ **智能收藏**：资源感知的提示词资产，支持版本历史、可复现示例、媒体支持、来源绑定和工作区应用
 - 📊 **高级测试模式**：上下文变量管理、多轮会话测试、工具调用（Function Calling）支持
 - 🔒 **安全架构**：纯客户端处理，数据直接与AI服务商交互，不经过中间服务器
 - 📱 **多端支持**：同时提供Web应用、桌面应用、Chrome插件和Docker部署四种使用方式
@@ -58,9 +62,18 @@ Prompt Optimizer是一个强大的AI提示词优化工具，帮助你编写更�
 ### 图像生成模式
 - 🖼️ **文生图（T2I）**：通过文本提示词生成图像
 - 🎨 **图生图（I2I）**：基于本地图片进行图像变换和优化
+- 🖼️ **多图生图**：使用多张输入图共同约束主体关系、顺序语义与最终生成目标
 - 🔌 **多模型支持**：集成Gemini、Seedream等主流图像生成模型
 - ⚙️ **模型参数**：支持各模型特有参数配置（如尺寸、风格等）
 - 📥 **预览与下载**：实时预览生成结果，支持下载保存
+- 🔄 **风格迁移**：从参考图中学习风格、构图和色彩
+
+### 提示词来源与智能收藏
+- 🌱 **可选提示词来源**：从手写、模板、本地文件或 [Prompt Garden 提示词库](https://garden.always200.com) 带入提示词
+- 📥 **导入与收藏**：在有来源信息时，连同元数据、媒体、示例和来源绑定一起保存
+- ⭐ **资源感知资产**：把稳定提示词保存为可复用收藏，支持版本历史
+- 🔗 **来源绑定**：追踪提示词来源并维护可复现示例，但不依赖某一种来源
+- 📦 **完整备份**：导出和导入收藏及其所有引用资源
 
 ### 高级测试模式
 - 📊 **上下文变量管理**：自定义变量、批量替换、变量预览

@@ -9,6 +9,8 @@ Favorites are best used for these jobs:
 
 Favorites are not the same thing as history.
 
+Favorites are also not tied to one prompt source. You can save manually written prompts, template results, local imports, or prompts that came from Prompt Garden.
+
 ## The simplest distinction
 
 - **History**: version chains and working process
@@ -74,6 +76,20 @@ So favorites behave more like a reusable entry with workspace context, not just 
 
 If a favorite was saved from the multi-image workflow, `Use now` also tries to restore that sub-mode and its media context so you do not need to rebuild the image set manually.
 
+## Applying examples to workspaces
+
+Favorites can also carry reproducible examples. When an example is applied, Prompt Optimizer restores the prompt together with the values, parameters, input images, or media that belong to that example.
+
+Supported targets include:
+
+- variable prompt workspace
+- multi-message context workspace
+- text-to-image workspace
+- image-to-image workspace
+- multi-image workspace
+
+This is useful when a favorite was saved with a known-good test case and you want to continue from the same evidence instead of rebuilding the setup by hand.
+
 ## How favorites and history should work together
 
 A practical workflow is:
@@ -117,11 +133,41 @@ That means a favorite can preserve not just text, but also a small media set rel
 
 ## About Prompt Garden
 
-The current implementation also supports a pluggable preview area for favorites.
+The current implementation also supports a pluggable preview area for favorites. Favorites can store prompt assets from different sources; when a favorite came from Prompt Garden, it can preserve the import code, source link, examples, and media snapshot.
 
-If your deployment enables `Prompt Garden` integration, a favorite preview can also show extra external snapshot information and media content.
+If your deployment enables `Prompt Garden` integration, a favorite preview can also show extra external snapshot information and media content. This is optional and not a prerequisite for using favorites.
 
-This is an optional integration, so it may not appear in every deployment.
+See [Prompt Garden](prompt-garden.md) for details.
+
+## v2.10.0 New Features
+
+### Resource-Aware Assets
+
+Favorites now support:
+
+- **Version History**: Track the evolution of prompts, view and restore historical versions
+- **Reproducible Examples**: Store test results and context for later reproduction and verification
+- **Media Support**: Images and cover images fully preserved
+
+### Source Binding
+
+Favorites imported from Prompt Garden automatically record:
+
+- Import code
+- Source link
+- Import time
+
+Facilitating later updates and source verification.
+
+### Complete Backup
+
+Exporting favorites now packages referenced images and media resources together. Importing automatically restores resource references, no need to separately migrate image files.
+
+Suitable for:
+
+- Migrating favorites with images
+- Complete backup of favorite collections
+- Sharing prompts with media
 
 ## Practical suggestions
 

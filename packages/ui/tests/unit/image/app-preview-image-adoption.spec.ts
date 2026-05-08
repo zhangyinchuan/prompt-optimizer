@@ -8,13 +8,12 @@ const readSource = (relativePath: string) =>
 describe('app preview image adoption guards', () => {
   it('replaces direct preview image usage with AppPreviewImage in key UI surfaces', () => {
     const files = [
-      'src/components/FavoriteCard.vue',
       'src/components/FavoriteMediaPreviewPanel.vue',
       'src/components/GardenSnapshotPreview.vue',
       'src/components/ImageModelEditModal.vue',
       'src/components/ImageModelManager.vue',
       'src/components/MainLayout.vue',
-      'src/components/SaveFavoriteDialog.vue',
+      'src/components/FavoriteEditorForm.vue',
       'src/components/image-mode/ImageImage2ImageWorkspace.vue',
       'src/components/image-mode/ImageText2ImageWorkspace.vue',
     ]
@@ -30,7 +29,7 @@ describe('app preview image adoption guards', () => {
     const files = [
       'src/components/FavoriteMediaPreviewPanel.vue',
       'src/components/GardenSnapshotPreview.vue',
-      'src/components/SaveFavoriteDialog.vue',
+      'src/components/FavoriteEditorForm.vue',
     ]
 
     for (const file of files) {

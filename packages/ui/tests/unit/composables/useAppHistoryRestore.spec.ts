@@ -89,6 +89,70 @@ describe('useAppHistoryRestore', () => {
     expect(handleSelectHistory).not.toHaveBeenCalled()
   })
 
+  it('waits for workspace navigation before restoring basic history data', async () => {
+    setGlobalMessageApi({
+      success: vi.fn(() => createReactive()),
+      error: vi.fn(() => createReactive()),
+      warning: vi.fn(() => createReactive()),
+      info: vi.fn(() => createReactive()),
+    })
+
+    const order: string[] = []
+    const navigateToSubModeKey = vi.fn(async () => {
+      order.push('navigation-started')
+      await Promise.resolve()
+      order.push('navigation-finished')
+    })
+    const handleSelectHistory = vi.fn(async () => {
+      order.push('history-selected')
+    })
+    const restoreSourceBindingForTargetKey = vi.fn()
+
+    const record = createBasicRecord('optimize')
+    record.metadata = {
+      ...record.metadata,
+      assetBinding: { assetId: 'asset-linked', versionId: 'version-linked', status: 'linked' },
+      origin: { kind: 'favorite', id: 'favorite-linked' },
+    }
+    const chain: PromptRecordChain = {
+      chainId: 'chain-basic-1',
+      rootRecord: record,
+      currentRecord: record,
+      versions: [record],
+    }
+
+    const { handleHistoryReuse } = useAppHistoryRestore({
+      services: ref(null),
+      navigateToSubModeKey,
+      handleContextModeChange: vi.fn(async () => {}),
+      handleSelectHistory,
+      proMultiMessageSession: {
+        updateConversationMessages: vi.fn(),
+        setMessageChainMap: vi.fn(),
+        conversationMessagesSnapshot: [],
+      } as any,
+      systemWorkspaceRef: ref(null),
+      userWorkspaceRef: ref(null),
+      t: (key: string) => key,
+      isLoadingExternalData: ref(false),
+      restoreSourceBindingForTargetKey,
+    })
+
+    await handleHistoryReuse({
+      record,
+      chainId: chain.chainId,
+      rootPrompt: chain.rootRecord.originalPrompt,
+      chain,
+    })
+
+    expect(navigateToSubModeKey).toHaveBeenCalledWith('basic-system')
+    expect(order).toEqual(['navigation-started', 'navigation-finished', 'history-selected'])
+    expect(restoreSourceBindingForTargetKey).toHaveBeenCalledWith('basic-system', {
+      assetBinding: { assetId: 'asset-linked', versionId: 'version-linked', status: 'linked' },
+      origin: { kind: 'favorite', id: 'favorite-linked' },
+    })
+  })
+
   it('logs history restore failures with an English runtime message', async () => {
     const error = vi.fn(() => createReactive())
     setGlobalMessageApi({

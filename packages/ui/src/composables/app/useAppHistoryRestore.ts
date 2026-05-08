@@ -13,12 +13,15 @@ import { useToast } from '../ui/useToast'
 import type { ConversationMessage } from '../../types'
 import type { ProMultiMessageSessionApi } from '../../stores/session/useProMultiMessageSession'
 import type {
+    PromptAssetBinding,
     ContextMode,
     PromptRecord,
     PromptRecordChain,
     IHistoryManager,
     OptimizationMode,
+    PromptSessionOrigin,
 } from '@prompt-optimizer/core'
+import { extractHistorySourceBinding } from '../../utils/history-source-binding'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === 'object'
@@ -47,7 +50,7 @@ export interface AppHistoryRestoreOptions {
     /** 服务实例 */
     services: Ref<{ historyManager: IHistoryManager } | null>
     /** 🔧 Step D: 路由导航函数（替代 setFunctionMode/set*SubMode） */
-    navigateToSubModeKey: (toKey: string, opts?: { replace?: boolean }) => void
+    navigateToSubModeKey: (toKey: string, opts?: { replace?: boolean }) => boolean | void | Promise<boolean | void>
     /** 处理上下文模式变更 */
     handleContextModeChange: (mode: ContextMode) => Promise<void>
     /** 处理历史记录选择 */
@@ -62,6 +65,11 @@ export interface AppHistoryRestoreOptions {
     t: (key: string, params?: Record<string, unknown>) => string
     /** 外部数据加载中标志（防止模式切换的自动 restore 覆盖外部数据） */
     isLoadingExternalData: Ref<boolean>
+    /** 将历史记录中的来源资产坐标恢复到目标工作区 session */
+    restoreSourceBindingForTargetKey?: (
+        targetKey: string,
+        state: { assetBinding?: PromptAssetBinding; origin?: PromptSessionOrigin },
+    ) => void
 }
 
 type ConversationSnapshotMessage = {
@@ -95,6 +103,7 @@ export function useAppHistoryRestore(options: AppHistoryRestoreOptions): AppHist
         userWorkspaceRef,
         t,
         isLoadingExternalData,
+        restoreSourceBindingForTargetKey,
     } = options
 
     const toast = useToast()
@@ -133,12 +142,20 @@ export function useAppHistoryRestore(options: AppHistoryRestoreOptions): AppHist
                         : 'text2image' // 默认为文生图模式
 
             // 🔧 Step D: 使用 navigateToSubModeKey 替代 setImageSubMode
-            navigateToSubModeKey(`image-${imageMode}`)
+            const targetKey = `image-${imageMode}`
+            const didNavigate = await navigateToSubModeKey(targetKey)
+            if (didNavigate === false) {
+                throw new Error(`Invalid image workspace target: ${targetKey}`)
+            }
             toast.info(t('toast.info.switchedToImageMode'))
 
             // 🆕 图像模式专用数据回填逻辑
             // 等待路由切换完成后再回填数据
             await nextTick()
+            restoreSourceBindingForTargetKey?.(
+                targetKey,
+                extractHistorySourceBinding(record, chain),
+            )
 
             // 🆕 图像模式专用数据回填逻辑
             const imageHistoryData = {
@@ -189,10 +206,17 @@ export function useAppHistoryRestore(options: AppHistoryRestoreOptions): AppHist
                 targetFunctionMode === 'pro'
                     ? `pro-${targetMode === 'system' ? 'multi' : 'variable'}`
                     : `basic-${targetMode}`
-            navigateToSubModeKey(targetKey)
+            const didNavigate = await navigateToSubModeKey(targetKey)
+            if (didNavigate === false) {
+                throw new Error(`Invalid workspace target: ${targetKey}`)
+            }
 
             // 等待路由切换完成
             await nextTick()
+            restoreSourceBindingForTargetKey?.(
+                targetKey,
+                extractHistorySourceBinding(record, chain),
+            )
 
             // 更新 toast 提示（如果需要）
             toast.info(

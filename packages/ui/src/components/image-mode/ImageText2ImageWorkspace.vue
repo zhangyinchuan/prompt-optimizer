@@ -1,5 +1,13 @@
 <template>
     <div class="image-text2image-workspace" data-testid="workspace" data-mode="image-text2image">
+        <div class="workspace-page-tools">
+            <WorkspaceUtilityMenu
+                :disabled="isOptimizing || isIterating || isAnyVariantRunning || isExtractingFromImage"
+                :source="resolveSourceAssetRef(session.origin, session.assetBinding)"
+                test-id="image-text2image-workspace-utility-menu"
+                @clear="handleClearContent"
+            />
+        </div>
         <div
             ref="splitRootRef"
             class="image-text2image-split"
@@ -279,6 +287,56 @@
                         show-count
                         :disabled="isOptimizing"
                     />
+
+                    <div
+                        v-if="showPromptGardenEmptyGuide"
+                        class="prompt-garden-empty-guide"
+                        data-testid="image-text2image-prompt-garden-guide"
+                    >
+                        <div class="prompt-garden-empty-guide__icon">
+                            <NIcon>
+                                <Plant2 />
+                            </NIcon>
+                        </div>
+                        <div class="prompt-garden-empty-guide__copy">
+                            <NText strong>
+                                {{ t('common.promptGarden.text2ImageGuideTitle') }}
+                            </NText>
+                            <NText depth="3" class="prompt-garden-empty-guide__hint">
+                                {{ t('common.promptGarden.text2ImageGuideHint') }}
+                            </NText>
+                        </div>
+                        <div class="prompt-garden-empty-guide__actions">
+                            <NButton
+                                size="small"
+                                secondary
+                                :disabled="isPromptGardenGuideDisabled"
+                                data-testid="image-text2image-prompt-garden-discover"
+                                @click="handlePromptGardenDiscover"
+                            >
+                                <template #icon>
+                                    <NIcon>
+                                        <ExternalLink />
+                                    </NIcon>
+                                </template>
+                                {{ t('common.promptGarden.discoverShort') }}
+                            </NButton>
+                            <NButton
+                                size="small"
+                                secondary
+                                :disabled="isPromptGardenGuideDisabled"
+                                data-testid="image-text2image-prompt-garden-import"
+                                @click="showPromptGardenImport = true"
+                            >
+                                <template #icon>
+                                    <NIcon>
+                                        <FileImport />
+                                    </NIcon>
+                                </template>
+                                {{ t('common.promptGarden.importShort') }}
+                            </NButton>
+                        </div>
+                    </div>
 
                     <!-- 控制面板 - 使用网格布局 -->
                     <NGrid :cols="24" :x-gap="8" responsive="screen">
@@ -638,6 +696,16 @@
                                         <template v-if="hasVariantResult(id)">
                                             <NSpace vertical :size="12" style="padding: 12px;">
                                                 <NFlex justify="end" align="center">
+                                                    <SaveTestResultExampleButton
+                                                        sub-mode-key="image-text2image"
+                                                        :variant-id="id"
+                                                        :content="optimizedPrompt || originalPrompt"
+                                                        :original-content="originalPrompt"
+                                                        function-mode="image"
+                                                        image-sub-mode="text2image"
+                                                        :disabled="variantRunning[id]"
+                                                        :test-id="`save-test-example-image-text2image-${id}`"
+                                                    />
                                                     <div
                                                         v-if="shouldShowResultEvaluationAction(id)"
                                                         class="output-evaluation-entry"
@@ -819,12 +887,18 @@
             :renderPhase="previewRenderPhase"
         />
 
+        <PromptGardenImportDialog
+            v-model:show="showPromptGardenImport"
+            @confirm="handlePromptGardenImportConfirm"
+        />
+
         <!-- 模板管理器由 App 统一管理，这里不再渲染 -->
     </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, inject, ref, reactive, computed, watch, nextTick, toRef, type Ref } from 'vue'
+import { useRouter, type LocationQueryRaw } from 'vue-router'
 
 import {
     NCard,
@@ -842,8 +916,11 @@ import {
     NRadioButton,
     NTooltip,
 } from "naive-ui";
+import { ExternalLink, FileImport, Plant2 } from '@vicons/tabler'
 import { useI18n } from "vue-i18n";
 import PromptPanelUI from "../PromptPanel.vue";
+import WorkspaceUtilityMenu from '../common/WorkspaceUtilityMenu.vue'
+import PromptGardenImportDialog from '../common/PromptGardenImportDialog.vue'
 import PromptPreviewPanel from "../PromptPreviewPanel.vue";
 import SelectWithConfig from "../SelectWithConfig.vue";
 import TestPanelVersionSelect from '../TestPanelVersionSelect.vue'
@@ -857,7 +934,10 @@ import FullscreenDialog from "../FullscreenDialog.vue";
 import type { SelectOption } from "../../types/select-options";
 import { useToast } from "../../composables/ui/useToast";
 import { getI18nErrorMessage } from '../../utils/error'
+import { withHistorySourceBindingMetadata } from '../../utils/history-source-binding'
+import { resolveSourceAssetRef } from '../../utils/source-asset'
 import { downloadImageSource } from '../../utils/image-download'
+import type { PromptGardenImportRequest } from '../../utils/prompt-garden-import'
 import {
     resolveReferencePromptPreview,
     type ReferenceApplicationMode,
@@ -866,6 +946,7 @@ import { VariableAwareInput } from '../variable-extraction'
 import TemporaryVariablesPanel from '../variable/TemporaryVariablesPanel.vue'
 import VariableValuePreviewDialog from '../variable/VariableValuePreviewDialog.vue'
 import AppPreviewImage from '../media/AppPreviewImage.vue'
+import SaveTestResultExampleButton from '../SaveTestResultExampleButton.vue'
 import { useTemporaryVariables } from '../../composables/variable/useTemporaryVariables'
 import { useVariableAwareInputBridge } from '../../composables/variable/useVariableAwareInputBridge'
 import { useTestVariableManager } from '../../composables/variable/useTestVariableManager'
@@ -910,6 +991,7 @@ import {
     shouldShowImageText2ImageResultAction,
 } from './imageText2ImageEvaluation'
 import {
+    getEnvVar,
     type ContextMode,
     type ImageModelConfig,
     type Text2ImageRequest,
@@ -926,6 +1008,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 // 国际化
 const { t } = useI18n();
+const router = useRouter()
 
 // Toast
 const toast = useToast();
@@ -1049,6 +1132,73 @@ const originalPrompt = computed<string>({
     get: () => session.originalPrompt || '',
     set: (value) => session.updatePrompt(value || ''),
 })
+
+const showPromptGardenImport = ref(false)
+
+const isPromptGardenEnabled = computed(() => {
+    const value = getEnvVar('VITE_ENABLE_PROMPT_GARDEN_IMPORT').trim().toLowerCase()
+    return value === '1' || value === 'true'
+})
+
+const promptGardenBaseUrl = computed(() =>
+    getEnvVar('VITE_PROMPT_GARDEN_BASE_URL').trim().replace(/\/$/, ''),
+)
+
+const showPromptGardenEmptyGuide = computed(() =>
+    isPromptGardenEnabled.value && !originalPrompt.value.trim(),
+)
+
+const isPromptGardenGuideDisabled = computed(() =>
+    isOptimizing.value || isIterating.value || isAnyVariantRunning.value || isExtractingFromImage.value,
+)
+
+const openExternalUrl = async (url: string) => {
+    if (!url) return
+
+    if (typeof window !== 'undefined' && window.electronAPI?.shell) {
+        try {
+            await window.electronAPI.shell.openExternal(url)
+            return
+        } catch (error) {
+            console.error('[PromptGarden] Failed to open external URL in Electron:', error)
+        }
+    }
+
+    if (typeof window !== 'undefined') {
+        window.open(url, '_blank')
+    }
+}
+
+const handlePromptGardenDiscover = () => {
+    void openExternalUrl(promptGardenBaseUrl.value)
+}
+
+const handlePromptGardenImportConfirm = async (request: PromptGardenImportRequest) => {
+    if (!request.importCode) return false
+
+    const currentRoute = router.currentRoute.value
+    const query: LocationQueryRaw = {
+        ...currentRoute.query,
+        importCode: request.importCode,
+    }
+    if (request.exampleId) {
+        query.exampleId = request.exampleId
+    } else {
+        delete query.exampleId
+    }
+    if (request.subModeKey) {
+        query.subModeKey = request.subModeKey
+    } else {
+        delete query.subModeKey
+    }
+
+    await router.push({
+        path: currentRoute.path,
+        query,
+    })
+
+    return true
+}
 
 const optimizedPrompt = computed<string>({
     get: () => session.optimizedPrompt || '',
@@ -1884,6 +2034,29 @@ const handleClearEvaluation = () => {
     compareEvaluationFingerprint.value = ''
 }
 
+const handleClearContent = () => {
+    currentChainId.value = ''
+    currentVersions.value = []
+    currentVersionId.value = ''
+    referenceImagePayload.value = null
+    referenceActionPendingCount.value = 0
+    referenceActionPreviewToken.value = 0
+    isExtractingFromImage.value = false
+    referenceAction.resetState()
+    session.clearContent()
+    handleClearEvaluation()
+}
+
+watch(
+    () => [session.chainId, session.versionId, session.optimizedPrompt] as const,
+    ([chainId, versionId, optimized]) => {
+        if (chainId || versionId || optimized) return
+        currentChainId.value = ''
+        currentVersions.value = []
+        currentVersionId.value = ''
+    },
+)
+
 const getVariantRequest = (id: TestVariantId): Text2ImageRequest | null => {
     const modelKey = (variantModelKeyModels[id].value || '').trim()
     if (!modelKey) {
@@ -2046,7 +2219,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
                   modelKey,
                   templateId,
                   iterationNote: payload.note,
-                  metadata: {
+                  metadata: withHistorySourceBindingMetadata({
                       optimizationMode: 'user' as OptimizationMode,
                       functionMode: 'image',
                       localEdit: true,
@@ -2054,7 +2227,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
                       imageModelKey: selectedImageModelKey.value,
                       hasInputImage: false,
                       compareMode: isCompareMode.value,
-                  },
+                  }, session),
               })
             : await historyManager.value.createNewChain({
                   id: uuidv4(),
@@ -2064,7 +2237,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
                   modelKey,
                   templateId,
                   timestamp: Date.now(),
-                  metadata: {
+                  metadata: withHistorySourceBindingMetadata({
                       optimizationMode: 'user' as OptimizationMode,
                       functionMode: 'image',
                       localEdit: true,
@@ -2072,7 +2245,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
                       imageModelKey: selectedImageModelKey.value,
                       hasInputImage: false,
                       compareMode: isCompareMode.value,
-                  },
+                  }, session),
               })
 
         currentChainId.value = chain.chainId
@@ -2113,6 +2286,7 @@ const resetExtractedPromptArtifacts = () => {
     currentVersions.value = []
     currentVersionId.value = ''
 
+    session.clearAssetBinding()
     session.updateOptimizedResult({
         optimizedPrompt: '',
         reasoning: '',
@@ -2549,13 +2723,13 @@ const createHistoryRecord = async () => {
             modelKey: selectedTextModelKey.value,
             templateId: selectedTemplate.value.id,
             timestamp: Date.now(),
-            metadata: {
+            metadata: withHistorySourceBindingMetadata({
                 optimizationMode: 'user' as OptimizationMode,
                 functionMode: 'image',
                 imageModelKey: selectedImageModelKey.value,
                 hasInputImage: false,
                 compareMode: isCompareMode.value,
-            },
+            }, session),
         }
 
         const newRecord = await historyManager.value.createNewChain(recordData)
@@ -2669,6 +2843,7 @@ const handleIteratePrompt = async (payload: {
                                 iterationNote: payload.iterateInput,
                                 modelKey: selectedTextModelKey.value,
                                 templateId: selectedIterateTemplate.value!.id,
+                                metadata: withHistorySourceBindingMetadata(undefined, session),
                             })
                             currentVersions.value = updatedChain.versions
                             currentVersionId.value = updatedChain.currentRecord.id
@@ -2874,11 +3049,14 @@ onUnmounted(() => {
 .image-text2image-workspace {
     width: 100%;
     height: 100%;
-    display: flex;
-    flex-direction: column;
+    position: relative;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
+}
+
+.workspace-page-tools {
+    display: contents;
 }
 
 .image-text2image-split {
@@ -2926,6 +3104,56 @@ onUnmounted(() => {
 
 .reference-action-status {
     border-radius: 999px;
+}
+
+.prompt-garden-empty-guide {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--n-success-color) 10%, var(--n-border-color));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--n-success-color) 3%, var(--n-color));
+}
+
+.prompt-garden-empty-guide__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: color-mix(in srgb, var(--n-success-color) 76%, var(--n-text-color-3));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--n-success-color) 7%, transparent);
+}
+
+.prompt-garden-empty-guide__copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.prompt-garden-empty-guide__hint {
+    line-height: 1.45;
+}
+
+.prompt-garden-empty-guide__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+@media (max-width: 720px) {
+    .prompt-garden-empty-guide {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .prompt-garden-empty-guide__actions {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
 }
 
 .split-divider {

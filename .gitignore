@@ -197,6 +197,8 @@ nul
 .cursor/rules/bmad/
 CLAUDE.md
 CLAUDE.local.md
+AGENTS.md
 .codex/
 .codex-run/
 .codex-tmp/
+.trellis/

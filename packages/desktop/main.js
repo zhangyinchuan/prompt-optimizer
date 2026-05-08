@@ -22,7 +22,7 @@ const consoleLogger = new ConsoleLogger();
 // 立即设置全局错误处理器，确保任何异常都能被记录
 consoleLogger.setupGlobalErrorHandlers();
 
-const { app, BrowserWindow, ipcMain, shell, session, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, Menu, nativeImage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const {
   buildReleaseUrl,
@@ -31,6 +31,7 @@ const {
   PREFERENCE_KEYS,
   DEFAULT_CONFIG
 } = require('./config/update-config');
+const { createGlobalDispatcherFromProxyDecision } = require('./config/proxy-dispatcher');
 const path = require('path');
 
 // 确定正确的配置文件路径
@@ -98,6 +99,37 @@ function safeSerialize(obj) {
   } catch (error) {
     console.error('[IPC Serialization] Failed to serialize object:', error);
     throw new Error(`Failed to serialize object for IPC: ${error.message}`);
+  }
+}
+
+async function convertImageInputWithElectronNativeImage(input) {
+  try {
+    if (!input || typeof input.b64 !== 'string' || !input.b64.trim()) {
+      return null;
+    }
+
+    const mimeType = typeof input.mimeType === 'string' && input.mimeType.trim()
+      ? input.mimeType.trim()
+      : 'application/octet-stream';
+    const source = input.b64.startsWith('data:')
+      ? input.b64
+      : `data:${mimeType};base64,${input.b64}`;
+    const image = nativeImage.createFromDataURL(source);
+    if (image.isEmpty()) {
+      return null;
+    }
+
+    const pngBuffer = image.toPNG();
+    if (!pngBuffer || pngBuffer.length === 0) {
+      return null;
+    }
+
+    return {
+      b64: pngBuffer.toString('base64'),
+      mimeType: 'image/png'
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -231,31 +263,22 @@ async function setupGlobalProxyDispatcherFromSystem() {
 
   // 将代理决策映射为 undici 的代理 URL
   // 支持：PROXY/HTTPS/SOCKS/SOCKS5/DIRECT
-  let dispatcher;
   let mappedProxyUrl = 'DIRECT';
   try {
-    if (proxyDecision.startsWith('PROXY ') || proxyDecision.startsWith('HTTPS ')) {
-      const hostPort = proxyDecision.split(' ')[1]; // host:port
-      mappedProxyUrl = `http://${hostPort}`;
-      dispatcher = new ProxyAgent(mappedProxyUrl);
-    } else if (proxyDecision.startsWith('SOCKS5 ')) {
-      const hostPort = proxyDecision.split(' ')[1];
-      mappedProxyUrl = `socks5://${hostPort}`;
-      dispatcher = new ProxyAgent(mappedProxyUrl);
-    } else if (proxyDecision.startsWith('SOCKS ')) {
-      const hostPort = proxyDecision.split(' ')[1];
-      mappedProxyUrl = `socks://${hostPort}`;
-      dispatcher = new ProxyAgent(mappedProxyUrl);
-    } else {
-      // DIRECT 或未知，使用默认直连 Agent
-      dispatcher = new Agent();
-    }
-
+    const { dispatcher, mappedProxyUrl: resolvedProxyUrl } = createGlobalDispatcherFromProxyDecision({
+      Agent,
+      ProxyAgent,
+      proxyDecision
+    });
+    mappedProxyUrl = resolvedProxyUrl;
     setGlobalDispatcher(dispatcher);
     // 基础日志（始终输出）
     console.log('[Proxy] 系统代理解析结果(raw):', rawResolve);
     console.log('[Proxy] 选用决策(decision):', proxyDecision);
     console.log('[Proxy] undici 全局代理:', mappedProxyUrl);
+    if (mappedProxyUrl !== 'DIRECT') {
+      console.log('[Proxy] localhost / 局域网 / 私网地址将绕过代理直连');
+    }
 
     // 诊断信息（仅在环境变量开启时输出）
     const debug = process.env.DEBUG_PROXY === '1' || process.env.PROXY_DEBUG === '1';
@@ -297,6 +320,33 @@ function setupPreferenceHandlers() {
   ipcMain.handle('preference-set', async (event, key, value) => {
     try {
       await preferenceService.set(key, value);
+      return createSuccessResponse(null);
+    } catch (error) {
+      return createErrorResponse(error);
+    }
+  });
+
+  ipcMain.handle('preference-delete', async (event, key) => {
+    try {
+      await preferenceService.delete(key);
+      return createSuccessResponse(null);
+    } catch (error) {
+      return createErrorResponse(error);
+    }
+  });
+
+  ipcMain.handle('preference-keys', async () => {
+    try {
+      const result = await preferenceService.keys();
+      return createSuccessResponse(result);
+    } catch (error) {
+      return createErrorResponse(error);
+    }
+  });
+
+  ipcMain.handle('preference-clear', async () => {
+    try {
+      await preferenceService.clear();
       return createSuccessResponse(null);
     } catch (error) {
       return createErrorResponse(error);
@@ -635,16 +685,20 @@ async function initializeServices() {
       llmService,
       templateManager,
       historyManager,
-      createImageUnderstandingService(),
+      createImageUnderstandingService({
+        imageInputConverter: convertImageInputWithElectronNativeImage,
+      }),
     );
     console.log('[DESKTOP] Creating Image service...');
-    imageService = createImageService(imageModelManager, imageAdapterRegistry);
+    imageService = createImageService(imageModelManager, imageAdapterRegistry, {
+      imageInputConverter: convertImageInputWithElectronNativeImage,
+    });
     
     console.log('[DESKTOP] Creating Context repository...');
     contextRepo = createContextRepo(storageProvider);
 
     console.log('[DESKTOP] Creating Data manager...');
-    dataManager = createDataManager(modelManager, templateManager, historyManager, preferenceService, contextRepo);
+    dataManager = createDataManager(modelManager, templateManager, historyManager, preferenceService, contextRepo, imageModelManager);
 
     console.log('[DESKTOP] Creating Favorite manager...');
     favoriteManager = new FavoriteManager(storageProvider);
@@ -1831,6 +1885,24 @@ function setupIPC() {
     try {
       const safeUpdates = safeSerialize(updates);
       await favoriteManager.updateFavorite(id, safeUpdates);
+      return createSuccessResponse(null);
+    } catch (error) {
+      return createFavoriteErrorResponse(error);
+    }
+  });
+
+  ipcMain.handle('favorite-setFavoritePromptAssetCurrentVersion', async (event, id, versionId) => {
+    try {
+      await favoriteManager.setFavoritePromptAssetCurrentVersion(id, versionId);
+      return createSuccessResponse(null);
+    } catch (error) {
+      return createFavoriteErrorResponse(error);
+    }
+  });
+
+  ipcMain.handle('favorite-deleteFavoritePromptAssetVersion', async (event, id, versionId) => {
+    try {
+      await favoriteManager.deleteFavoritePromptAssetVersion(id, versionId);
       return createSuccessResponse(null);
     } catch (error) {
       return createFavoriteErrorResponse(error);

@@ -14,6 +14,7 @@ const messages = {
     "modelKey": "Model Key",
     "apiUrl": "API URL",
     "apiUrlHint": "Example: https://api.example.com/v1; most providers use endpoints ending with /v1",
+    "apiUrlHintAriaLabel": "Show API URL help",
     "defaultModel": "Default Model",
     "clickToFetchModels": "Click arrow to fetch model list",
     "apiKey": "API Key",
@@ -23,10 +24,19 @@ const messages = {
     "provider": {
       "section": "Provider Configuration",
       "label": "Provider",
-      "placeholder": "Select Provider"
+      "placeholder": "Select Provider",
+      "openaiHint": "This is the official OpenAI API. If you want a custom base URL, a third-party compatible service, or a local model, choose \"Custom API (OpenAI Compatible)\" instead.",
+      "customApiHint": "Use this for custom OpenAI-compatible endpoints. You can configure the base URL, use your own model name, and choose Chat Completions or Responses as the request style.",
+      "dashscopeHint": "DashScope supports both OpenAI-compatible Chat Completions and Responses APIs. You can switch the request style here directly.",
+      "minimaxHint": "The default endpoint is the global MiniMax OpenAI-compatible API. Mainland China users should set API URL to https://api.minimaxi.com/v1. Do not use Anthropic-format MiniMax endpoints here."
     },
     "connection": {
-      "accountId": "Account ID"
+      "accountId": "Account ID",
+      "requestStyle": "Request Style",
+      "requestStyleOptions": {
+        "chatCompletions": "Chat Completions",
+        "responses": "Responses"
+      }
     },
     "model": {
       "section": "Model Configuration"
@@ -198,6 +208,18 @@ const messages = {
       "label": "Include Thoughts",
       "description": "Whether to include the model's thinking process in the response (Gemini 2.5+ only). When enabled, you can see the model's reasoning steps."
     },
+    "reasoning_effort": {
+      "label": "Reasoning Effort",
+      "description": "Controls the reasoning effort for models that support thinking mode."
+    },
+    "deepseek": {
+      "thinking_type": {
+        "label": "Thinking Mode",
+        "description": "Controls DeepSeek thinking mode. Sent as thinking.type in the API request.",
+        "disabled": "Disabled",
+        "enabled": "Enabled"
+      }
+    },
     "tokens": {
       "unit": "tokens"
     },
@@ -237,6 +259,10 @@ const messages = {
       "label": "Response Format",
       "description": "Format of the returned image (URL or Base64)"
     },
+    "outputFormat": {
+      "label": "Output Format",
+      "description": "File format for the generated image (such as PNG, JPEG, or WebP)"
+    },
     "watermark": {
       "label": "Watermark",
       "description": "Whether to add a watermark to the generated image"
@@ -244,6 +270,10 @@ const messages = {
     "sequentialGeneration": {
       "label": "Sequential Generation",
       "description": "Control sequential image generation mode (for supported models)"
+    },
+    "tools": {
+      "label": "Tools",
+      "description": "List of 5.0 series extension tools, one tool name per line"
     },
     "seed": {
       "label": "Seed",

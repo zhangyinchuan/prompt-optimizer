@@ -94,6 +94,8 @@ export type {
   ImageStorageConfig,
   IImageStorageService,
   ImageInputRef,
+  ImageInputConverter,
+  ImageInputCompatibilityOptions,
 } from './services/image/types'
 // 导出图像存储相关函数和类型
 export { isImageRef, createImageRef } from './services/image/types'
@@ -124,6 +126,9 @@ export * from './services/prompt/types'
 export { ElectronPromptServiceProxy } from './services/prompt/electron-proxy'
 export * from './services/prompt/errors'
 
+// 导出标准提示词领域模型
+export * from './services/prompt-model'
+
 // 导出对比服务相关
 export { CompareService, createCompareService } from './services/compare/service'
 export type { ICompareService } from './services/compare/types'
@@ -148,6 +153,8 @@ export {
   isBrowser,
   isDevelopment,
   getEnvVar,
+  DEFAULT_VITE_ENV,
+  getDefaultEnvVar,
   scanCustomModelEnvVars,
   clearCustomModelEnvCache,
   CUSTOM_API_PATTERN,

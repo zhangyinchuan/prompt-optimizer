@@ -14,6 +14,7 @@ const messages = {
     "modelKey": "模型標識",
     "apiUrl": "API位址",
     "apiUrlHint": "範例：https://api.example.com/v1；多數提供商位址通常以 /v1 結尾",
+    "apiUrlHintAriaLabel": "顯示 API 位址說明",
     "defaultModel": "預設模型",
     "clickToFetchModels": "點選箭頭取得模型清單",
     "apiKey": "API金鑰",
@@ -23,10 +24,19 @@ const messages = {
     "provider": {
       "section": "提供商配置",
       "label": "提供商",
-      "placeholder": "選擇提供商"
+      "placeholder": "選擇提供商",
+      "openaiHint": "這是官方 OpenAI API 入口。如果你想接入自訂 Base URL、第三方相容服務或本地模型，請選擇「Custom API (OpenAI Compatible)」。",
+      "customApiHint": "用於接入自訂 OpenAI 相容接口。你可以配置 Base URL、自訂模型名稱，並選擇 Chat Completions 或 Responses 請求風格。",
+      "dashscopeHint": "阿里百鍊已支援 OpenAI 相容的 Chat Completions 與 Responses 接口，目前可直接在這裡切換請求風格使用。",
+      "minimaxHint": "預設位址是 MiniMax 海外 OpenAI 相容接口。中國大陸用戶請將 API 位址改為 https://api.minimaxi.com/v1；這裡不要使用 MiniMax 的 Anthropic 格式位址。"
     },
     "connection": {
-      "accountId": "帳戶 ID"
+      "accountId": "帳戶 ID",
+      "requestStyle": "請求風格",
+      "requestStyleOptions": {
+        "chatCompletions": "Chat Completions",
+        "responses": "Responses"
+      }
     },
     "model": {
       "section": "模型配置"
@@ -198,6 +208,18 @@ const messages = {
       "label": "包含思考過程",
       "description": "是否在回應中包含模型的思考過程（僅 Gemini 2.5+）。啟用後可以看到模型的推理步驟。"
     },
+    "reasoning_effort": {
+      "label": "推理強度",
+      "description": "控制支援思考模式的模型投入的推理強度。"
+    },
+    "deepseek": {
+      "thinking_type": {
+        "label": "思考模式",
+        "description": "控制 DeepSeek 思考模式，會作為 thinking.type 傳送到 API 請求中。",
+        "disabled": "關閉",
+        "enabled": "開啟"
+      }
+    },
     "tokens": {
       "unit": "令牌"
     },
@@ -237,6 +259,10 @@ const messages = {
       "label": "回應格式",
       "description": "回應圖片的格式（URL 或 Base64 編碼）"
     },
+    "outputFormat": {
+      "label": "輸出格式",
+      "description": "指定生成圖像的檔案格式（如 PNG、JPEG 或 WebP）"
+    },
     "watermark": {
       "label": "浮水印",
       "description": "是否在生成的圖像上新增浮水印"
@@ -244,6 +270,10 @@ const messages = {
     "sequentialGeneration": {
       "label": "序列生成",
       "description": "控制序列圖像生成模式（支援的模型）"
+    },
+    "tools": {
+      "label": "工具",
+      "description": "5.0 系列擴充工具列表，每行一個工具名稱"
     },
     "seed": {
       "label": "隨機種子",

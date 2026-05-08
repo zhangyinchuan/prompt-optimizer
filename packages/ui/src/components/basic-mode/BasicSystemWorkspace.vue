@@ -4,6 +4,14 @@
         data-testid="workspace"
         data-mode="basic-system"
     >
+        <div class="workspace-page-tools">
+            <WorkspaceUtilityMenu
+                :disabled="unwrappedLogicProps.isOptimizing || unwrappedLogicProps.isIterating || isAnyVariantRunning"
+                :source="resolveSourceAssetRef(session.origin, session.assetBinding)"
+                test-id="basic-system-workspace-utility-menu"
+                @clear="handleClearContent"
+            />
+        </div>
         <div
             ref="splitRootRef"
             class="basic-system-split"
@@ -358,6 +366,16 @@
                                             v-if="hasVariantResult(id)"
                                             class="output-evaluation-entry"
                                         >
+                                            <SaveTestResultExampleButton
+                                                sub-mode-key="basic-system"
+                                                :variant-id="id"
+                                                :content="logic.optimizedPrompt.value || logic.prompt.value"
+                                                :original-content="logic.prompt.value"
+                                                function-mode="basic"
+                                                optimization-mode="system"
+                                                :disabled="variantRunning[id]"
+                                                :test-id="`save-test-example-basic-system-${id}`"
+                                            />
                                             <EvaluationScoreBadge
                                                 v-if="getResultEvaluationProps(id).hasEvaluation || getResultEvaluationProps(id).isEvaluating"
                                                 :score="getResultEvaluationProps(id).score"
@@ -465,8 +483,11 @@ import { provideEvaluation } from '../../composables/prompt/useEvaluationContext
 import { NButton, NCard, NFlex, NIcon, NText, NRadioGroup, NRadioButton, NTooltip, NTag } from 'naive-ui'
 import InputPanelUI from '../InputPanel.vue'
 import PromptPanelUI from '../PromptPanel.vue'
+import WorkspaceUtilityMenu from '../common/WorkspaceUtilityMenu.vue'
+import { resolveSourceAssetRef } from '../../utils/source-asset'
 import TestInputSection from '../TestInputSection.vue'
 import OutputDisplay from '../OutputDisplay.vue'
+import SaveTestResultExampleButton from '../SaveTestResultExampleButton.vue'
 import {
   AnalyzeActionIcon,
   CompareHelpButton,
@@ -1108,6 +1129,7 @@ const runAllVariants = async () => {
         silentSuccess: true,
         silentError: true,
         skipClearEvaluation: true,
+        allowParallel: true,
         persist: false,
       })
   )
@@ -1509,6 +1531,11 @@ const handleClearEvaluation = () => {
   compareEvaluationFingerprint.value = ''
 }
 
+const handleClearContent = () => {
+  logic.clearContent()
+  handleClearEvaluation()
+}
+
 // 保存本地编辑
 const handleSaveLocalEdit = async (payload: { note?: string }) => {
   await logic.handleSaveLocalEdit({
@@ -1618,11 +1645,14 @@ defineExpose({
 .basic-system-workspace {
     width: 100%;
     height: 100%;
-    display: flex;
-    flex-direction: column;
+    position: relative;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
+}
+
+.workspace-page-tools {
+    display: contents;
 }
 
 .basic-system-split {

@@ -1,5 +1,13 @@
 <template>
   <div class="image-multiimage-workspace" data-testid="workspace" data-mode="image-multiimage">
+    <div class="workspace-page-tools">
+      <WorkspaceUtilityMenu
+          :disabled="optimizing || isIterating || isAnyVariantRunning"
+          :source="resolveSourceAssetRef(session.origin, session.assetBinding)"
+          test-id="image-multiimage-workspace-utility-menu"
+          @clear="handleClearContent"
+        />
+    </div>
     <div
       ref="splitRootRef"
       class="image-multiimage-split"
@@ -439,6 +447,18 @@
                   <div class="result-body">
                   <template v-if="hasVariantResult(id)">
                     <NSpace vertical :size="12" style="padding: 12px;">
+                      <NFlex justify="end" align="center">
+                        <SaveTestResultExampleButton
+                          sub-mode-key="image-multiimage"
+                          :variant-id="id"
+                          :content="optimizedPrompt || originalPrompt"
+                          :original-content="originalPrompt"
+                          function-mode="image"
+                          image-sub-mode="multiimage"
+                          :disabled="variantRunning[id]"
+                          :test-id="`save-test-example-image-multiimage-${id}`"
+                        />
+                      </NFlex>
                       <AppPreviewImage
                         v-if="getVariantResult(id)?.images?.[0]"
                         :data-testid="getVariantImageTestId(id)"
@@ -555,6 +575,8 @@ import { buildTestPanelVersionOptions, resolveTestPanelVersionSelection } from '
 import { buildMultiImageVariantFingerprint } from '../../utils/multiimage-workspace'
 import { downloadImageSource } from '../../utils/image-download'
 import { getI18nErrorMessage } from '../../utils/error'
+import { withHistorySourceBindingMetadata } from '../../utils/history-source-binding'
+import { resolveSourceAssetRef } from '../../utils/source-asset'
 import { OptionAccessors } from '../../utils/data-transformer'
 import type { VariableManagerHooks } from '../../composables/prompt/useVariableManager'
 import PromptPanelUI from '../PromptPanel.vue'
@@ -564,9 +586,11 @@ import FullscreenDialog from '../FullscreenDialog.vue'
 import AppPreviewImage from '../media/AppPreviewImage.vue'
 import { VariableAwareInput } from '../variable-extraction'
 import TemporaryVariablesPanel from '../variable/TemporaryVariablesPanel.vue'
+import WorkspaceUtilityMenu from '../common/WorkspaceUtilityMenu.vue'
 import VariableValuePreviewDialog from '../variable/VariableValuePreviewDialog.vue'
 import TestPanelVersionSelect from '../TestPanelVersionSelect.vue'
 import ImageTokenUsage from './ImageTokenUsage.vue'
+import SaveTestResultExampleButton from '../SaveTestResultExampleButton.vue'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -1243,13 +1267,13 @@ const createHistoryRecord = async () => {
     modelKey: selectedTextModelKey.value,
     templateId: selectedTemplate.value.id,
     timestamp: Date.now(),
-    metadata: {
+    metadata: withHistorySourceBindingMetadata({
       optimizationMode: 'user' as OptimizationMode,
       functionMode: 'image',
       imageModelKey: session.selectedImageModelKey,
       inputImageCount: session.inputImages.length,
       compareMode: session.isCompareMode,
-    },
+    }, session),
   })
 
   currentChainId.value = chain.chainId
@@ -1351,13 +1375,13 @@ const handleIteratePrompt = async (payload: {
                 iterationNote: payload.iterateInput,
                 modelKey: selectedTextModelKey.value,
                 templateId: selectedIterateTemplate.value!.id,
-                metadata: {
+                metadata: withHistorySourceBindingMetadata({
                   optimizationMode: 'user' as OptimizationMode,
                   functionMode: 'image',
                   imageModelKey: session.selectedImageModelKey,
                   inputImageCount: session.inputImages.length,
                   compareMode: session.isCompareMode,
-                },
+                }, session),
               })
               currentChainId.value = updatedChain.chainId
               currentVersions.value = updatedChain.versions
@@ -1434,7 +1458,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
           modelKey,
           templateId,
           iterationNote: payload.note,
-          metadata: {
+          metadata: withHistorySourceBindingMetadata({
             optimizationMode: 'user' as OptimizationMode,
             functionMode: 'image',
             localEdit: true,
@@ -1442,7 +1466,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
             imageModelKey: session.selectedImageModelKey,
             inputImageCount: session.inputImages.length,
             compareMode: session.isCompareMode,
-          },
+          }, session),
         })
       : await historyManager.value.createNewChain({
           id: createRecordId(),
@@ -1452,7 +1476,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
           modelKey,
           templateId,
           timestamp: Date.now(),
-          metadata: {
+          metadata: withHistorySourceBindingMetadata({
             optimizationMode: 'user' as OptimizationMode,
             functionMode: 'image',
             localEdit: true,
@@ -1460,7 +1484,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
             imageModelKey: session.selectedImageModelKey,
             inputImageCount: session.inputImages.length,
             compareMode: session.isCompareMode,
-          },
+          }, session),
         })
 
     currentChainId.value = chain.chainId
@@ -1675,6 +1699,23 @@ const handleSaveFavorite = (data: { content: string; originalContent?: string })
   }
 }
 
+const handleClearContent = () => {
+  currentChainId.value = ''
+  currentVersions.value = []
+  currentVersionId.value = ''
+  session.clearContent()
+}
+
+watch(
+  () => [session.chainId, session.versionId, session.optimizedPrompt] as const,
+  ([chainId, versionId, optimized]) => {
+    if (chainId || versionId || optimized) return
+    currentChainId.value = ''
+    currentVersions.value = []
+    currentVersionId.value = ''
+  },
+)
+
 const handleRestoreFavorite = (event: Event) => {
   if (!(event instanceof CustomEvent)) return
   const detail = event.detail as { content?: string; imageSubMode?: string; metadata?: Record<string, unknown> }
@@ -1801,7 +1842,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.image-multiimage-workspace { height: 100%; min-height: 0; }
+.image-multiimage-workspace { position: relative; height: 100%; min-height: 0; overflow: visible; }
+.workspace-page-tools { display: contents; }
 .image-multiimage-split { display: grid; gap: 12px; height: 100%; min-height: 0; overflow: hidden; }
 .split-pane { min-height: 0; min-width: 0; overflow: hidden; }
 .hidden-input { display: none; }

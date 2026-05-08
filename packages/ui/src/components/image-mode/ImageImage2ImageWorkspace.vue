@@ -1,5 +1,13 @@
 <template>
     <div class="image-image2image-workspace" data-testid="workspace" data-mode="image-image2image">
+        <div class="workspace-page-tools">
+            <WorkspaceUtilityMenu
+                :disabled="isOptimizing || isIterating || isAnyVariantRunning"
+                :source="resolveSourceAssetRef(session.origin, session.assetBinding)"
+                test-id="image-image2image-workspace-utility-menu"
+                @clear="handleClearContent"
+            />
+        </div>
         <div
             ref="splitRootRef"
             class="image-image2image-split"
@@ -32,24 +40,22 @@
                             {{ promptSummary }}
                         </NText>
                     </NFlex>
-                    <NFlex align="center" :size="8">
-                        <NButton
-                            type="tertiary"
-                            size="small"
-                            ghost
-                            round
-                            @click="isInputPanelCollapsed = false"
-                            :title="t('common.expand')"
-                        >
-                            <template #icon>
-                                <NIcon>
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </NIcon>
-                            </template>
-                        </NButton>
-                    </NFlex>
+                    <NButton
+                        type="tertiary"
+                        size="small"
+                        ghost
+                        round
+                        @click="isInputPanelCollapsed = false"
+                        :title="t('common.expand')"
+                    >
+                        <template #icon>
+                            <NIcon>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </NIcon>
+                        </template>
+                    </NButton>
                 </NFlex>
 
                 <!-- 展开态：完整输入面板 -->
@@ -514,6 +520,18 @@
                                     <div class="result-body">
                                         <template v-if="hasVariantResult(id)">
                                             <NSpace vertical :size="12" style="padding: 12px;">
+                                                <NFlex justify="end" align="center">
+                                                    <SaveTestResultExampleButton
+                                                        sub-mode-key="image-image2image"
+                                                        :variant-id="id"
+                                                        :content="optimizedPrompt || originalPrompt"
+                                                        :original-content="originalPrompt"
+                                                        function-mode="image"
+                                                        image-sub-mode="image2image"
+                                                        :disabled="variantRunning[id]"
+                                                        :test-id="`save-test-example-image-image2image-${id}`"
+                                                    />
+                                                </NFlex>
                                                 <AppPreviewImage
                                                     :data-testid="getVariantImageTestId(id)"
                                                     :src="getImageSrc(getVariantResult(id)?.images?.[0])"
@@ -726,6 +744,7 @@ import {
 } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import PromptPanelUI from "../PromptPanel.vue";
+import WorkspaceUtilityMenu from '../common/WorkspaceUtilityMenu.vue'
 import PromptPreviewPanel from "../PromptPreviewPanel.vue";
 import SelectWithConfig from "../SelectWithConfig.vue";
 import TestPanelVersionSelect from '../TestPanelVersionSelect.vue'
@@ -737,11 +756,14 @@ import FullscreenDialog from "../FullscreenDialog.vue";
 import type { SelectOption } from "../../types/select-options";
 import { useToast } from "../../composables/ui/useToast";
 import { getI18nErrorMessage } from '../../utils/error'
+import { withHistorySourceBindingMetadata } from '../../utils/history-source-binding'
+import { resolveSourceAssetRef } from '../../utils/source-asset'
 import { downloadImageSource } from '../../utils/image-download'
 import { VariableAwareInput } from '../variable-extraction'
 import TemporaryVariablesPanel from '../variable/TemporaryVariablesPanel.vue'
 import VariableValuePreviewDialog from '../variable/VariableValuePreviewDialog.vue'
 import AppPreviewImage from '../media/AppPreviewImage.vue'
+import SaveTestResultExampleButton from '../SaveTestResultExampleButton.vue'
 import { useTemporaryVariables } from '../../composables/variable/useTemporaryVariables'
 import { useVariableAwareInputBridge } from '../../composables/variable/useVariableAwareInputBridge'
 import { useTestVariableManager } from '../../composables/variable/useTestVariableManager'
@@ -1436,6 +1458,7 @@ const queueSessionSave = () => {
         .catch((e) => {
             console.error('[ImageImage2ImageWorkspace] Failed to persist image session:', e)
         })
+    return sessionSaveChain
 }
 
 const getImageDimensionsFromSource = (src: string): Promise<{ width: number; height: number }> =>
@@ -1584,7 +1607,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
                   modelKey,
                   templateId,
                   iterationNote: payload.note,
-                  metadata: {
+                  metadata: withHistorySourceBindingMetadata({
                       optimizationMode: 'user' as OptimizationMode,
                       functionMode: 'image',
                       localEdit: true,
@@ -1592,7 +1615,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
                       imageModelKey: selectedImageModelKey.value,
                       hasInputImage: !!inputImageB64.value,
                       compareMode: isCompareMode.value,
-                  },
+                  }, session),
               })
             : await historyManager.value.createNewChain({
                   id: uuidv4(),
@@ -1602,7 +1625,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
                   modelKey,
                   templateId,
                   timestamp: Date.now(),
-                  metadata: {
+                  metadata: withHistorySourceBindingMetadata({
                       optimizationMode: 'user' as OptimizationMode,
                       functionMode: 'image',
                       localEdit: true,
@@ -1610,7 +1633,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
                       imageModelKey: selectedImageModelKey.value,
                       hasInputImage: !!inputImageB64.value,
                       compareMode: isCompareMode.value,
-                  },
+                  }, session),
               })
 
         currentChainId.value = chain.chainId
@@ -1719,6 +1742,7 @@ const handleUploadChange = async (data: ImageUploadChangePayload) => {
         session.updateInputImage(null, '')
         uploadStatus.value = 'idle'
         uploadProgress.value = 0
+        await queueSessionSave()
         return
     }
 
@@ -1741,10 +1765,11 @@ const handleUploadChange = async (data: ImageUploadChangePayload) => {
 
     const reader = new FileReader()
 
-    reader.onload = () => {
+    reader.onload = async () => {
         const dataUrl = reader.result as string
         const base64 = dataUrl.split(',')[1]
         session.updateInputImage(base64, file.type)
+        await queueSessionSave()
         uploadStatus.value = 'success'
         uploadProgress.value = 100
         toast.success(t('imageWorkspace.upload.uploadSuccess'))
@@ -1765,11 +1790,11 @@ const handleUploadChange = async (data: ImageUploadChangePayload) => {
 }
 
 // 弹窗中的上传处理
-const handleModalUploadChange = (data: ImageUploadChangePayload) => {
+const handleModalUploadChange = async (data: ImageUploadChangePayload) => {
     // 复用原有的上传逻辑
-    handleUploadChange(data);
+    await handleUploadChange(data);
     // 上传成功后关闭弹窗
-    if (data?.file && data.file.status === "finished") {
+    if (uploadStatus.value === 'success') {
         setTimeout(() => {
             showUploadModal.value = false;
         }, 1000);
@@ -1781,6 +1806,23 @@ const clearUploadedImage = () => {
     // 调用上传变更处理器，传入空数据来清除图片
     handleUploadChange({ file: null, fileList: [] });
 };
+
+const handleClearContent = () => {
+    currentChainId.value = '';
+    currentVersions.value = [];
+    currentVersionId.value = '';
+    session.clearContent();
+};
+
+watch(
+    () => [session.chainId, session.versionId, session.optimizedPrompt] as const,
+    ([chainId, versionId, optimized]) => {
+        if (chainId || versionId || optimized) return;
+        currentChainId.value = '';
+        currentVersions.value = [];
+        currentVersionId.value = '';
+    },
+);
 
 // 处理收藏保存请求 - 调用 App.vue 提供的统一接口
 const handleSaveFavorite = (data: {
@@ -1963,13 +2005,13 @@ const createHistoryRecord = async () => {
             modelKey: selectedTextModelKey.value,
             templateId: selectedTemplate.value.id,
             timestamp: Date.now(),
-            metadata: {
+            metadata: withHistorySourceBindingMetadata({
                 optimizationMode: 'user' as OptimizationMode,
                 functionMode: 'image',
                 imageModelKey: selectedImageModelKey.value,
                 hasInputImage: !!inputImageB64.value,
                 compareMode: isCompareMode.value,
-            },
+            }, session),
         }
 
         const newRecord = await historyManager.value.createNewChain(recordData)
@@ -2093,6 +2135,7 @@ const handleIteratePrompt = async (payload: {
                                 iterationNote: payload.iterateInput,
                                 modelKey: selectedTextModelKey.value,
                                 templateId: selectedIterateTemplate.value!.id,
+                                metadata: withHistorySourceBindingMetadata(undefined, session),
                             })
                             currentVersions.value = updatedChain.versions
                             currentVersionId.value = updatedChain.currentRecord.id
@@ -2316,11 +2359,14 @@ onUnmounted(() => {
 .image-image2image-workspace {
     width: 100%;
     height: 100%;
-    display: flex;
-    flex-direction: column;
+    position: relative;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
+}
+
+.workspace-page-tools {
+    display: contents;
 }
 
 .image-image2image-split {
