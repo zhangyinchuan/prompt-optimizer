@@ -52,6 +52,7 @@
                         @open-data-manager="showDataManager = true"
                         @open-variables="handleOpenVariableManager()"
                         :favorites-active="isFavoritesRoute"
+                        :backup-reminder-due="dataBackupReminderDue"
                         :app-version="appVersion"
                         @open-website="openOfficialWebsite"
                         @open-docs="openDocumentationSite"
@@ -246,6 +247,7 @@ import {
     resolveWorkspacePathFallback,
 } from '../../router/workspaceRoutes';
 import { createExternalDataLoadingGate } from '../../utils/external-data-loading'
+import { openExternalUrl } from '../../utils/open-external-url'
 import { registerOptionalIntegrations } from '../../integrations/registerOptionalIntegrations';
 import { useI18n } from "vue-i18n";
 import {
@@ -331,6 +333,10 @@ import type { TemplateManagerTemplateType } from '../../composables/prompt/useTe
 
 // Data Transformation
 import { DataTransformer } from '../../utils/data-transformer'
+import {
+  DATA_BACKUP_STATUS_EVENT,
+  isDataBackupReminderDue,
+} from '../../utils/data-backup-reminder'
 
 // Types
 import type { ModelSelectOption, TestAreaPanelInstance } from '../../types'
@@ -639,6 +645,7 @@ const servicesForContextEditor = computed(() => services?.value || null);
 // 6. 创建所有必要的引用
 const promptService = shallowRef<IPromptService | null>(null);
 const showDataManager = ref(false);
+const dataBackupReminderDue = ref(isDataBackupReminderDue());
 
 type ContextWorkspaceExpose = {
     // Vue ComponentPublicInstance 会自动 unwrap expose 里的 Ref，因此这里使用已解包的类型
@@ -1970,19 +1977,6 @@ watch(
     { immediate: false },
 );
 
-const openExternalUrl = async (url: string) => {
-    if (typeof window !== "undefined" && window.electronAPI?.shell) {
-        try {
-            await window.electronAPI.shell.openExternal(url);
-        } catch (error) {
-            console.error("Failed to open external URL in Electron:", error);
-            window.open(url, "_blank");
-        }
-    } else {
-        window.open(url, "_blank");
-    }
-};
-
 const appVersion = `v${rootPackageJson.version}`;
 
 const openOfficialWebsite = async () => {
@@ -2272,11 +2266,18 @@ const handleVisibilityChange = () => {
   }
 }
 
+const refreshDataBackupReminder = () => {
+  dataBackupReminderDue.value = isDataBackupReminderDue()
+}
+
 onMounted(() => {
   // Route-level lazy loading can break after a new deployment when this tab is still running an old main bundle.
   // Prompt user to refresh instead of auto-reloading.
   if (typeof window !== 'undefined') {
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener(DATA_BACKUP_STATUS_EVENT, refreshDataBackupReminder);
+    window.addEventListener('storage', refreshDataBackupReminder);
+    refreshDataBackupReminder();
   }
   removeRouterErrorHandler = routerInstance.onError((error) => {
     if (!isChunkLoadFailure(error)) return;
@@ -2384,6 +2385,8 @@ onBeforeUnmount(async () => {
     window.removeEventListener('pagehide', handlePagehide)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
     window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+    window.removeEventListener(DATA_BACKUP_STATUS_EVENT, refreshDataBackupReminder)
+    window.removeEventListener('storage', refreshDataBackupReminder)
     if (hasRegisteredGlobalHistoryRefresh) {
       window.removeEventListener(
         'prompt-optimizer:history-refresh',

@@ -31,7 +31,7 @@
                     <template #footer>
                       <NUpload
                         :max="1"
-                        accept=".zip,.po-favorites.zip,.json,application/zip,application/json"
+                        accept=".zip,.po-favorites.zip,.json,.html,.htm,.png,application/zip,application/json,text/html,image/png"
                         :default-upload="false"
                         :file-list="fileList"
                         @change="handleFileChange"
@@ -47,7 +47,7 @@
                 <NUpload
                   v-else
                   :max="1"
-                  accept=".zip,.po-favorites.zip,.json,application/zip,application/json"
+                  accept=".zip,.po-favorites.zip,.json,.html,.htm,.png,application/zip,application/json,text/html,image/png"
                   :default-upload="false"
                   :file-list="fileList"
                   @change="handleFileChange"
@@ -173,12 +173,18 @@ import { getEnvVar } from '@prompt-optimizer/core'
 import { useToast } from '../composables/ui/useToast'
 import type { AppServices } from '../types/services'
 import { getI18nErrorMessage } from '../utils/error'
+import { openExternalUrl } from '../utils/open-external-url'
 import { parsePromptGardenImportInput } from '../utils/prompt-garden-import'
 import {
   importFavoriteResourcePackage,
   looksLikeFavoriteZipPackage,
   type FavoriteResourcePackageImportResult,
 } from '../utils/favorite-resource-package'
+import {
+  looksLikeFavoriteShareHtml,
+  looksLikeFavoriteSharePng,
+  readFavoriteSharePackage,
+} from '../utils/favorite-share-export'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -230,25 +236,8 @@ const handleFileChange = (options: UploadChangeParam) => {
   fileList.value = options.fileList.slice(0, 1)
 }
 
-const openExternalUrl = async (url: string) => {
-  if (!url) return
-
-  if (typeof window !== 'undefined' && window.electronAPI?.shell) {
-    try {
-      await window.electronAPI.shell.openExternal(url)
-      return
-    } catch (error) {
-      console.error('[PromptGarden] Failed to open external URL in Electron:', error)
-    }
-  }
-
-  if (typeof window !== 'undefined') {
-    window.open(url, '_blank')
-  }
-}
-
 const handlePromptGardenDiscover = () => {
-  void openExternalUrl(promptGardenBaseUrl.value)
+  void openExternalUrl(promptGardenBaseUrl.value, { logPrefix: 'PromptGarden' })
 }
 
 const readFileAsArrayBuffer = (file: File) =>
@@ -299,6 +288,29 @@ const buildPackageImportWarning = (result: FavoriteResourcePackageImportResult):
     warnings.push(`${t('favorites.manager.importDialog.importPartialFailed')}:\n${result.favorites.errors.join('\n')}`)
   }
   return warnings.join('\n')
+}
+
+const importPackageBuffer = async (
+  buffer: ArrayBuffer | Uint8Array,
+  servicesValue: AppServices,
+) => {
+  const result = await importFavoriteResourcePackage(buffer, {
+    favoriteManager: servicesValue.favoriteManager,
+    imageStorageService: servicesValue.favoriteImageStorageService || servicesValue.imageStorageService,
+    mergeStrategy: mergeStrategy.value,
+  })
+  message.success(t('favorites.manager.importDialog.packageImportSuccess', {
+    imported: result.favorites.imported,
+    skipped: result.favorites.skipped,
+    restored: result.resources.restored,
+    resourceSkipped: result.resources.skipped,
+  }))
+
+  const warning = buildPackageImportWarning(result)
+  if (warning) {
+    message.warning(warning)
+  }
+  emit('imported')
 }
 
 const handleImportConfirm = async () => {
@@ -361,27 +373,28 @@ const handleImportConfirm = async () => {
       const bytes = new Uint8Array(buffer)
 
       if (looksLikeFavoriteZipPackage(file.name, bytes)) {
-        const result = await importFavoriteResourcePackage(buffer, {
-          favoriteManager: servicesValue.favoriteManager,
-          imageStorageService: servicesValue.favoriteImageStorageService || servicesValue.imageStorageService,
-          mergeStrategy: mergeStrategy.value,
-        })
-        message.success(t('favorites.manager.importDialog.packageImportSuccess', {
-          imported: result.favorites.imported,
-          skipped: result.favorites.skipped,
-          restored: result.resources.restored,
-          resourceSkipped: result.resources.skipped,
-        }))
+        await importPackageBuffer(buffer, servicesValue)
+        return
+      }
 
-        const warning = buildPackageImportWarning(result)
-        if (warning) {
-          message.warning(warning)
-        }
-        emit('imported')
+      if (looksLikeFavoriteSharePng(file.name, bytes)) {
+        await importPackageBuffer(readFavoriteSharePackage(bytes), servicesValue)
         return
       }
 
       const payload = new TextDecoder().decode(bytes).trim()
+      if (looksLikeFavoriteShareHtml(file.name, payload)) {
+        await importPackageBuffer(readFavoriteSharePackage(payload), servicesValue)
+        return
+      }
+
+      if (file.name.toLowerCase().endsWith('.png')) {
+        throw new Error(t('favorites.manager.importDialog.sharePngMissingData'))
+      }
+      if (/\.(html|htm)$/i.test(file.name)) {
+        throw new Error(t('favorites.manager.importDialog.shareHtmlMissingData'))
+      }
+
       if (!payload) {
         message.warning(t('favorites.manager.importDialog.selectFileOrPaste'))
         return
