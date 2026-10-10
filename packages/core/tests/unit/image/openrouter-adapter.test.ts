@@ -24,6 +24,7 @@ describe('OpenRouterImageAdapter', () => {
       expect(provider.requiresApiKey).toBe(true)
       expect(provider.supportsDynamicModels).toBe(true)
       expect(provider.defaultBaseURL).toBe('https://openrouter.ai/api/v1')
+      expect(provider.apiKeyUrl).toBe('https://openrouter.ai/settings/keys')
     })
 
     it('should have correct connection schema', () => {
@@ -40,8 +41,8 @@ describe('OpenRouterImageAdapter', () => {
       const models = adapter.getModels()
 
       expect(models.length).toBeGreaterThan(0)
-      expect(models[0].id).toBe('google/gemini-2.5-flash-image')
-      expect(models[0].name).toBe('Gemini 2.5 Flash Image (Nano Banana)')
+      expect(models[0].id).toBe('google/gemini-3.1-flash-image')
+      expect(models[0].name).toBe('Gemini 3.1 Flash Image (Nano Banana 2)')
       expect(models[0].providerId).toBe('openrouter')
     })
 

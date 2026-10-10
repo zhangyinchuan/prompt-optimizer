@@ -25,7 +25,12 @@
                     size="medium"
                 >
                 <!-- 输入控制区域（可折叠） -->
-                <NCard :style="{ flexShrink: 0 }">
+                <TestSourceLinkedCard
+                    :style="{ flexShrink: 0 }"
+                    :feedback-key="sourceAreaFeedback.original.key"
+                    :feedback-tone="sourceAreaFeedback.original.tone"
+                    :source-tone="sourceAreaFeedback.original.sourceTone"
+                >
                     <!-- 折叠态：只显示标题栏 -->
                     <NFlex
                         v-if="isInputPanelCollapsed"
@@ -84,13 +89,30 @@
                         @configModel="handleOpenModelManager"
                     >
                         <!-- 模型选择 -->
+                        <template #model-label-extra>
+                            <TextModelQuickSwitch
+                                :model-key="selectedOptimizeModelKeyModel"
+                                :options="modelSelection.textModelOptions.value"
+                                :refresh-models="modelSelection.refreshTextModels"
+                                :disabled="unwrappedLogicProps.isOptimizing"
+                            />
+                        </template>
+
                         <template #model-select>
                             <SelectWithConfig
                                 v-model="selectedOptimizeModelKeyModel"
+                                data-testid="basic-system-model-select"
                                 :options="modelSelection.textModelOptions"
                                 :getPrimary="OptionAccessors.getPrimary"
                                 :getSecondary="OptionAccessors.getSecondary"
                                 :getValue="OptionAccessors.getValue"
+                                :placeholder="t('model.select.placeholder')"
+                                size="medium"
+                                :disabled="unwrappedLogicProps.isOptimizing"
+                                filterable
+                                :show-config-action="true"
+                                :show-empty-config-c-t-a="true"
+                                @focus="modelSelection.refreshTextModels"
                                 @config="handleOpenModelManager"
                             />
                         </template>
@@ -103,6 +125,13 @@
                                 :getPrimary="OptionAccessors.getPrimary"
                                 :getSecondary="OptionAccessors.getSecondary"
                                 :getValue="OptionAccessors.getValue"
+                                :placeholder="t('template.select')"
+                                size="medium"
+                                :disabled="unwrappedLogicProps.isOptimizing"
+                                filterable
+                                :show-config-action="true"
+                                :show-empty-config-c-t-a="true"
+                                @focus="templateSelection.refreshOptimizeTemplates"
                                 @config="() => handleOpenTemplateManager('optimize')"
                             />
                         </template>
@@ -127,12 +156,15 @@
                             </NButton>
                         </template>
                     </InputPanelUI>
-                </NCard>
+                </TestSourceLinkedCard>
 
                 <!-- 优化工作区 -->
-                <NCard
+                <TestSourceLinkedCard
                     :style="{ flex: 1, minHeight: '200px', overflow: 'hidden' }"
                     content-style="height: 100%; max-height: 100%; overflow: hidden;"
+                    :feedback-key="sourceAreaFeedback.workspace.key"
+                    :feedback-tone="sourceAreaFeedback.workspace.tone"
+                    :source-tone="sourceAreaFeedback.workspace.sourceTone"
                 >
                     <PromptPanelUI
                         test-id="basic-system"
@@ -145,6 +177,9 @@
                         v-model:selected-iterate-template="selectedIterateTemplate"
                         :versions="unwrappedLogicProps.currentVersions"
                         :current-version-id="unwrappedLogicProps.currentVersionId"
+                        :source-feedback-key="sourceAreaFeedback.workspace.key"
+                        :source-feedback-tone="sourceAreaFeedback.workspace.tone"
+                        :source-feedback-version="sourceAreaFeedback.workspace.resolvedVersion"
                         optimization-mode="system"
                         :advanced-mode-enabled="false"
                         :show-preview="false"
@@ -157,7 +192,7 @@
                         @apply-patch="handleApplyPatch"
                         @save-local-edit="handleSaveLocalEdit"
                     />
-                </NCard>
+                </TestSourceLinkedCard>
                 </NFlex>
             </div>
 
@@ -186,7 +221,14 @@
                             mode="normal"
                             :enable-fullscreen="true"
                             test-id="basic-system-test-input"
-                        />
+                        >
+                            <template #header-actions>
+                                <TestImageAttachmentControl
+                                    v-model="testImageModel"
+                                    :disabled="isAnyVariantRunning"
+                                />
+                            </template>
+                        </TestInputSection>
                     </NCard>
 
                     <!-- 顶部：列数与全局操作 -->
@@ -276,14 +318,27 @@
                                     :class="{ 'variant-cell__controls--stacked': useStackedVariantControls }"
                                 >
                                     <div class="variant-cell__meta">
-                                        <NTag size="small" :bordered="false" class="variant-cell__label">
-                                            {{ getVariantLabel(id) }}
-                                        </NTag>
+                                        <TestVariantSourceTag
+                                            class="variant-cell__label"
+                                            :variant-label="getVariantLabel(id)"
+                                            :selection="variantVersionModels[id].value"
+                                            :resolved-version="getVariantResolvedVersion(id)"
+                                            :labels="getTestPanelVersionLabels()"
+                                            :feedback-key="variantSourceFeedback[id].key"
+                                            :feedback-tone="variantSourceFeedback[id].tone"
+                                            @activate="activateVariantSource(id)"
+                                        />
                                         <CompareRoleBadge
                                             v-if="activeVariantIds.length >= 2"
                                             :entry="compareRoleEntryMap[id]"
                                             clickable
                                             @click="openCompareRoleConfig"
+                                        />
+                                        <TextModelQuickSwitch
+                                            :model-key="variantModelKeyModels[id].value"
+                                            :options="modelSelection.textModelOptions.value"
+                                            :refresh-models="modelSelection.refreshTextModels"
+                                            :disabled="variantRunning[id] || isAnyVariantRunning"
                                         />
                                     </div>
 
@@ -293,7 +348,7 @@
                                             :options="versionOptions"
                                             :disabled="variantRunning[id] || isAnyVariantRunning"
                                             :test-id="getVariantVersionTestId(id)"
-                                            @update:value="(value) => { variantVersionModels[id].value = value as TestPanelVersionValue }"
+                                            @update:value="(value) => handleVariantVersionChange(id, value)"
                                         />
                                         <div class="variant-cell__model">
                                             <SelectWithConfig
@@ -304,32 +359,36 @@
                                                 :getPrimary="OptionAccessors.getPrimary"
                                                 :getSecondary="OptionAccessors.getSecondary"
                                                 :getValue="OptionAccessors.getValue"
+                                                :placeholder="t('model.select.placeholder')"
+                                                size="medium"
+                                                :disabled="variantRunning[id] || isAnyVariantRunning"
+                                                filterable
+                                                :show-config-action="true"
+                                                :show-empty-config-c-t-a="true"
+                                                @focus="modelSelection.refreshTextModels"
                                                 @config="handleOpenModelManager"
                                                 style="min-width: 0; width: 100%;"
                                             />
                                         </div>
 
                                         <div class="variant-cell__run">
-                                            <NTooltip trigger="hover">
-                                                <template #trigger>
-                                                    <NButton
-                                                        type="primary"
-                                                        size="small"
-                                                        circle
-                                                        :loading="variantRunning[id]"
-                                                        :disabled="isAnyVariantRunning && !variantRunning[id]"
-                                                        @click="() => runVariant(id)"
-                                                        :data-testid="getVariantRunTestId(id)"
-                                                    >
-                                                        <template #icon>
-                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                                                                <path d="M8 5v14l11-7z" />
-                                                            </svg>
-                                                        </template>
-                                                    </NButton>
-                                                </template>
-                                                {{ t('test.layout.runThisColumn') }}
-                                            </NTooltip>
+                                            <ThemedTooltip :label="t('test.layout.runThisColumn')">
+                                                <NButton
+                                                    type="primary"
+                                                    size="small"
+                                                    circle
+                                                    :loading="variantRunning[id]"
+                                                    :disabled="isAnyVariantRunning && !variantRunning[id]"
+                                                    @click="() => runVariant(id)"
+                                                    :data-testid="getVariantRunTestId(id)"
+                                                >
+                                                    <template #icon>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                                            <path d="M8 5v14l11-7z" />
+                                                        </svg>
+                                                    </template>
+                                                </NButton>
+                                            </ThemedTooltip>
                                         </div>
                                     </div>
                                 </div>
@@ -373,7 +432,7 @@
                                                 :original-content="logic.prompt.value"
                                                 function-mode="basic"
                                                 optimization-mode="system"
-                                                :disabled="variantRunning[id]"
+                                                :disabled="variantRunning[id] || isVariantStale(id)"
                                                 :test-id="`save-test-example-basic-system-${id}`"
                                             />
                                             <EvaluationScoreBadge
@@ -478,14 +537,16 @@ import { useBasicWorkspaceLogic } from '../../composables/workspaces/useBasicWor
 import { useWorkspaceModelSelection } from '../../composables/workspaces/useWorkspaceModelSelection'
 import { useWorkspaceTemplateSelection } from '../../composables/workspaces/useWorkspaceTemplateSelection'
 import { useEvaluationHandler } from '../../composables/prompt/useEvaluationHandler'
-import { buildCompareEvaluationPayload, useCompareRoleConfig } from '../../composables/prompt'
+import { buildCompareEvaluationPayload, useCompareRoleConfig, useTestSourceAreaFeedback, useTestVariantSourceFeedback } from '../../composables/prompt'
 import { provideEvaluation } from '../../composables/prompt/useEvaluationContext'
-import { NButton, NCard, NFlex, NIcon, NText, NRadioGroup, NRadioButton, NTooltip, NTag } from 'naive-ui'
+import { NButton, NCard, NFlex, NIcon, NText, NRadioGroup, NRadioButton, NTag } from 'naive-ui'
 import InputPanelUI from '../InputPanel.vue'
 import PromptPanelUI from '../PromptPanel.vue'
 import WorkspaceUtilityMenu from '../common/WorkspaceUtilityMenu.vue'
+import ThemedTooltip from '../common/ThemedTooltip.vue'
 import { resolveSourceAssetRef } from '../../utils/source-asset'
 import TestInputSection from '../TestInputSection.vue'
+import TestImageAttachmentControl from '../TestImageAttachmentControl.vue'
 import OutputDisplay from '../OutputDisplay.vue'
 import SaveTestResultExampleButton from '../SaveTestResultExampleButton.vue'
 import {
@@ -499,7 +560,10 @@ import {
 } from '../evaluation'
 import { buildCompareToolbarStatus } from '../evaluation/compare-ui'
 import SelectWithConfig from '../SelectWithConfig.vue'
+import TextModelQuickSwitch from '../TextModelQuickSwitch.vue'
 import TestPanelVersionSelect from '../TestPanelVersionSelect.vue'
+import TestSourceLinkedCard from '../TestSourceLinkedCard.vue'
+import TestVariantSourceTag from '../TestVariantSourceTag.vue'
 import { OptionAccessors } from '../../utils/data-transformer'
 import {
   buildTestPanelVersionPromptRef,
@@ -512,6 +576,7 @@ import type { IteratePayload } from '../../types/workspace'
 import {
   applyPatchOperationsToText,
   type EvaluationType,
+  type ImageInputRef,
   type PatchOperation,
   type Template,
 } from '@prompt-optimizer/core'
@@ -708,6 +773,43 @@ const testContentModel = computed({
   set: (value) => { logic.testContent.value = value }
 })
 
+const testImageModel = computed<ImageInputRef | null>({
+  get: () => session.testImageB64
+    ? {
+        b64: session.testImageB64,
+        mimeType: session.testImageMimeType || 'image/png',
+      }
+    : null,
+  set: (value) => {
+    session.updateTestImage(value?.b64 ?? null, value?.mimeType ?? '')
+  },
+})
+
+const getTestInputImages = (): ImageInputRef[] => {
+  const image = testImageModel.value
+  return image ? [image] : []
+}
+
+const getSafeImageProviderErrorMessage = (
+  error: unknown,
+  inputImages: ImageInputRef[],
+): string => {
+  if (!(error instanceof Error)) return ''
+
+  let message = error.message.trim().replace(
+    /data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi,
+    '[redacted-image]',
+  )
+  for (const image of inputImages) {
+    const rawB64 = image.b64.trim()
+    if (rawB64 && message.includes(rawB64)) {
+      message = message.split(rawB64).join('[redacted-image]')
+    }
+  }
+
+  return message
+}
+
 // 🔧 为 SelectWithConfig 的 v-model 创建解包的 computed
 const selectedOptimizeModelKeyModel = computed({
   get: () => logic.selectedOptimizeModelKey.value,
@@ -880,9 +982,27 @@ const variantRunning = reactive<Record<TestVariantId, boolean>>({
   d: false,
 })
 
+const { variantSourceFeedback, pulseVariantSource } =
+  useTestVariantSourceFeedback<TestVariantId>(['a', 'b', 'c', 'd'])
+const { sourceAreaFeedback, pulseSourceAreaForSelection } =
+  useTestSourceAreaFeedback()
+
 const isAnyVariantRunning = computed(() => activeVariantIds.value.some((id) => !!variantRunning[id]))
 
 const getVariantLabel = (id: TestVariantId) => ({ a: 'A', b: 'B', c: 'C', d: 'D' }[id])
+
+const handleVariantVersionChange = (id: TestVariantId, value: string | number) => {
+  const selection = value as TestPanelVersionValue
+  variantVersionModels[id].value = selection
+  activateVariantSource(id)
+}
+
+const activateVariantSource = (id: TestVariantId) => {
+  const selection = variantVersionModels[id].value
+  const resolved = resolveTestPrompt(selection)
+  pulseVariantSource(id, 'change')
+  pulseSourceAreaForSelection(selection, resolved.resolvedVersion, 'change')
+}
 
 const getVariantVersionTestId = (id: TestVariantId) => {
   if (id === 'a') return 'basic-system-test-original-version-select'
@@ -916,6 +1036,11 @@ const hashString = (input: string): string => {
   return (hash >>> 0).toString(36)
 }
 
+// 图片最多可达 5 MiB；只在图片本身变化时计算一次，避免每次渲染、每列 stale 检查都重复扫描 base64。
+const testImageFingerprint = computed(() => session.testImageB64
+  ? hashString(`${session.testImageMimeType || 'image/png'}:${session.testImageB64}`)
+  : 'none')
+
 const getVariantFingerprint = (id: TestVariantId) => {
   const selection = variantVersionModels[id].value
   const resolved = resolveTestPrompt(selection)
@@ -923,7 +1048,11 @@ const getVariantFingerprint = (id: TestVariantId) => {
   // system 模式测试输入会直接影响输出，因此需要纳入 fingerprint
   const systemHash = hashString((resolved.text || '').trim())
   const userHash = hashString((logic.testContent.value || '').trim())
-  return `${String(selection)}:${resolved.resolvedVersion}:${modelKey}:${systemHash}:${userHash}`
+  const textFingerprint = `${String(selection)}:${resolved.resolvedVersion}:${modelKey}:${systemHash}:${userHash}`
+  // 无图时保持历史 fingerprint 字符串完全不变；有图才追加图片摘要，删除后自然失效。
+  return testImageFingerprint.value === 'none'
+    ? textFingerprint
+    : `${textFingerprint}:${testImageFingerprint.value}`
 }
 
 const isVariantStale = (id: TestVariantId) => {
@@ -942,6 +1071,9 @@ const getVariantVersionLabel = (id: TestVariantId): string => {
     getTestPanelVersionLabels(),
   )
 }
+
+const getVariantResolvedVersion = (id: TestVariantId): number =>
+  resolveTestPrompt(variantVersionModels[id].value).resolvedVersion
 
 const compareReadyVariantIds = computed(() =>
   activeVariantIds.value.filter((id) => hasVariantResult(id) && !isVariantStale(id))
@@ -1037,6 +1169,8 @@ const getVariantTestInput = (id: TestVariantId): VariantTestInput | null => {
         ? 'test.error.noOriginalPrompt'
         : 'test.error.noOptimizedPrompt'
     toast.error(t(key))
+    pulseVariantSource(id, 'error')
+    pulseSourceAreaForSelection(variantVersionModels[id].value, resolved.resolvedVersion, 'error')
     return null
   }
 
@@ -1056,6 +1190,9 @@ const runVariant = async (
     skipClearEvaluation?: boolean
     persist?: boolean
     allowParallel?: boolean
+    inputImages?: ImageInputRef[]
+    runFingerprint?: string
+    onError?: (error: unknown) => void
   }
 ): Promise<boolean> => {
   if (variantRunning[id]) return false
@@ -1076,9 +1213,11 @@ const runVariant = async (
 
   variantResults.value[id] = { result: '', reasoning: '' }
   variantRunning[id] = true
+  const inputImages = opts?.inputImages ?? getTestInputImages()
+  const runFingerprint = opts?.runFingerprint ?? getVariantFingerprint(id)
 
   try {
-    await promptService.testPromptStream(input.systemPrompt, input.userPrompt, input.modelKey, {
+    const callbacks = {
       onToken: (token: string) => {
         const prev = variantResults.value[id]
         variantResults.value[id] = { ...prev, result: (prev.result || '') + token }
@@ -1093,20 +1232,42 @@ const runVariant = async (
       onError: (error: Error) => {
         throw error
       },
-    })
+    }
+
+    if (inputImages.length > 0) {
+      await promptService.testPromptStream(
+        input.systemPrompt,
+        input.userPrompt,
+        input.modelKey,
+        callbacks,
+        inputImages,
+      )
+    } else {
+      // 保留原有纯文本调用形态，避免影响已有实现和调用方。
+      await promptService.testPromptStream(
+        input.systemPrompt,
+        input.userPrompt,
+        input.modelKey,
+        callbacks,
+      )
+    }
 
     if (!opts?.silentSuccess) {
       toast.success(t('toast.success.testComplete'))
     }
     return true
-  } catch (_error) {
+  } catch (error) {
+    opts?.onError?.(error)
     if (!opts?.silentError) {
-      toast.error(t('toast.error.testFailed'))
+      const imageProviderMessage = inputImages.length > 0
+        ? getSafeImageProviderErrorMessage(error, inputImages)
+        : ''
+      toast.error(imageProviderMessage || t('toast.error.testFailed'))
     }
     return false
   } finally {
     variantRunning[id] = false
-    variantLastRunFingerprint.value[id] = getVariantFingerprint(id)
+    variantLastRunFingerprint.value[id] = runFingerprint
     if (opts?.persist !== false) {
       void session.saveSession()
     }
@@ -1121,6 +1282,13 @@ const runAllVariants = async () => {
     if (!getVariantTestInput(id)) return
   }
 
+  // 对比两侧固定使用同一次点击时的图片与 fingerprint 快照。
+  const sharedInputImages = getTestInputImages()
+  const runFingerprints = Object.fromEntries(
+    ids.map((id) => [id, getVariantFingerprint(id)]),
+  ) as Record<TestVariantId, string>
+  const runErrors: unknown[] = []
+
   evaluationHandler.clearBeforeTest()
   const results = await runTasksWithExecutionMode(
     ids,
@@ -1131,6 +1299,9 @@ const runAllVariants = async () => {
         skipClearEvaluation: true,
         allowParallel: true,
         persist: false,
+        inputImages: sharedInputImages,
+        runFingerprint: runFingerprints[id],
+        onError: (error) => runErrors.push(error),
       })
   )
 
@@ -1139,7 +1310,10 @@ const runAllVariants = async () => {
   if (results.every(Boolean)) {
     toast.success(t('toast.success.testComplete'))
   } else {
-    toast.error(t('toast.error.testFailed'))
+    const imageProviderMessage = sharedInputImages.length > 0
+      ? getSafeImageProviderErrorMessage(runErrors[0], sharedInputImages)
+      : ''
+    toast.error(imageProviderMessage || t('toast.error.testFailed'))
   }
 }
 
@@ -1169,6 +1343,18 @@ const buildVariantPromptRef = (id: TestVariantId) => {
   return buildTestPanelVersionPromptRef(resolved, getTestPanelVersionLabels())
 }
 
+const buildTestImageEvaluationMedia = () => {
+  const assetId = session.testImageAssetId?.trim() || ''
+  const b64 = session.testImageB64?.trim() || ''
+  if (!assetId && !b64) return undefined
+
+  return [{
+    label: t('test.image.evaluationLabel'),
+    ...(assetId ? { assetId } : { b64 }),
+    mimeType: session.testImageMimeType || 'image/png',
+  }]
+}
+
 const buildSharedTextTestCaseDraft = () => ({
   id: 'shared-test-case',
   label: t('test.content'),
@@ -1177,6 +1363,7 @@ const buildSharedTextTestCaseDraft = () => ({
         kind: 'text' as const,
         label: t('test.content'),
         content: logic.testContent.value,
+        media: buildTestImageEvaluationMedia(),
       }
     : undefined,
 })
@@ -1195,6 +1382,7 @@ const resultEvaluationTargets = computed(() =>
             kind: 'text' as const,
             label: t('test.content'),
             content: logic.testContent.value || '',
+            media: buildTestImageEvaluationMedia(),
           },
         },
         snapshot: {

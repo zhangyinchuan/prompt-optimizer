@@ -33,7 +33,12 @@
                     :style="{ overflow: 'auto', height: '100%', minHeight: 0 }"
                 >
             <!-- 提示词输入面板 (可折叠) -->
-            <NCard style="flex-shrink: 0;">
+            <TestSourceLinkedCard
+                style="flex-shrink: 0;"
+                :feedback-key="sourceAreaFeedback.original.key"
+                :feedback-tone="sourceAreaFeedback.original.tone"
+                :source-tone="sourceAreaFeedback.original.sourceTone"
+            >
                 <!-- 折叠态：只显示标题栏 -->
                 <NFlex
                     v-if="isInputPanelCollapsed"
@@ -101,6 +106,15 @@
                     @add-missing-variable="handleAddMissingVariable"
                 >
                     <!-- 模型选择插槽 -->
+                    <template #model-label-extra>
+                        <TextModelQuickSwitch
+                            :model-key="selectedOptimizeModelKeyModel"
+                            :options="modelSelection.textModelOptions.value"
+                            :refresh-models="modelSelection.refreshTextModels"
+                            :disabled="contextUserOptimization.isOptimizing"
+                        />
+                    </template>
+
                     <template #model-select>
                         <SelectWithConfig
                             v-model="selectedOptimizeModelKeyModel"
@@ -108,6 +122,13 @@
                             :getPrimary="OptionAccessors.getPrimary"
                             :getSecondary="OptionAccessors.getSecondary"
                             :getValue="OptionAccessors.getValue"
+                            :placeholder="t('model.select.placeholder')"
+                            size="medium"
+                            :disabled="contextUserOptimization.isOptimizing"
+                            filterable
+                            :show-config-action="true"
+                            :show-empty-config-c-t-a="true"
+                            @focus="modelSelection.refreshTextModels"
                             @config="handleOpenModelManager"
                         />
                     </template>
@@ -120,6 +141,13 @@
                             :getPrimary="OptionAccessors.getPrimary"
                             :getSecondary="OptionAccessors.getSecondary"
                             :getValue="OptionAccessors.getValue"
+                            :placeholder="t('template.select')"
+                            size="medium"
+                            :disabled="contextUserOptimization.isOptimizing"
+                            filterable
+                            :show-config-action="true"
+                            :show-empty-config-c-t-a="true"
+                            @focus="templateSelection.refreshOptimizeTemplates"
                             @config="handleOpenTemplateManager"
                         />
                     </template>
@@ -144,7 +172,7 @@
                         </NButton>
                     </template>
                 </InputPanelUI>
-            </NCard>
+            </TestSourceLinkedCard>
 
             <!--
                 用户模式特性说明:
@@ -159,9 +187,12 @@
             -->
 
             <!-- 优化结果面板 -->
-            <NCard
+            <TestSourceLinkedCard
                 style="flex: 1; min-height: 200px; overflow: hidden"
                 content-style="height: 100%; max-height: 100%; overflow: hidden;"
+                :feedback-key="sourceAreaFeedback.workspace.key"
+                :feedback-tone="sourceAreaFeedback.workspace.tone"
+                :source-tone="sourceAreaFeedback.workspace.sourceTone"
             >
                 <PromptPanelUI
                     test-id="pro-variable"
@@ -178,6 +209,9 @@
                     "
                     :versions="contextUserOptimization.currentVersions"
                     :current-version-id="contextUserOptimization.currentVersionId"
+                    :source-feedback-key="sourceAreaFeedback.workspace.key"
+                    :source-feedback-tone="sourceAreaFeedback.workspace.tone"
+                    :source-feedback-version="sourceAreaFeedback.workspace.resolvedVersion"
                       :optimization-mode="optimizationMode"
                        :advanced-mode-enabled="true"
                        :show-preview="true"
@@ -191,7 +225,7 @@
                      @apply-patch="handleApplyLocalPatch"
                      @save-local-edit="handleSaveLocalEdit"
                  />
-            </NCard>
+            </TestSourceLinkedCard>
                 </NFlex>
             </div>
 
@@ -314,14 +348,27 @@
                                     :class="{ 'variant-cell__controls--stacked': useStackedVariantControls }"
                                 >
                                     <div class="variant-cell__meta">
-                                        <NTag size="small" :bordered="false" class="variant-cell__label">
-                                            {{ getVariantLabel(id) }}
-                                        </NTag>
+                                        <TestVariantSourceTag
+                                            class="variant-cell__label"
+                                            :variant-label="getVariantLabel(id)"
+                                            :selection="variantVersionModels[id].value"
+                                            :resolved-version="getVariantResolvedVersion(id)"
+                                            :labels="getTestPanelVersionLabels()"
+                                            :feedback-key="variantSourceFeedback[id].key"
+                                            :feedback-tone="variantSourceFeedback[id].tone"
+                                            @activate="activateVariantSource(id)"
+                                        />
                                         <CompareRoleBadge
                                             v-if="activeVariantIds.length >= 2"
                                             :entry="compareRoleEntryMap[id]"
                                             clickable
                                             @click="openCompareRoleConfig"
+                                        />
+                                        <TextModelQuickSwitch
+                                            :model-key="variantModelKeyModels[id].value"
+                                            :options="modelSelection.textModelOptions.value"
+                                            :refresh-models="modelSelection.refreshTextModels"
+                                            :disabled="variantRunning[id] || isAnyVariantRunning"
                                         />
                                     </div>
 
@@ -331,7 +378,7 @@
                                             :options="versionOptions"
                                             :disabled="variantRunning[id] || isAnyVariantRunning"
                                             :test-id="getVariantVersionTestId(id)"
-                                            @update:value="(value) => { variantVersionModels[id].value = value as TestPanelVersionValue }"
+                                            @update:value="(value) => handleVariantVersionChange(id, value)"
                                         />
                                         <div class="variant-cell__model">
                                             <SelectWithConfig
@@ -342,32 +389,36 @@
                                                 :getPrimary="OptionAccessors.getPrimary"
                                                 :getSecondary="OptionAccessors.getSecondary"
                                                 :getValue="OptionAccessors.getValue"
+                                                :placeholder="t('model.select.placeholder')"
+                                                size="medium"
+                                                :disabled="variantRunning[id] || isAnyVariantRunning"
+                                                filterable
+                                                :show-config-action="true"
+                                                :show-empty-config-c-t-a="true"
+                                                @focus="modelSelection.refreshTextModels"
                                                 @config="emit('config-model')"
                                                 style="min-width: 0; width: 100%;"
                                             />
                                         </div>
 
                                         <div class="variant-cell__run">
-                                            <NTooltip trigger="hover">
-                                                <template #trigger>
-                                                    <NButton
-                                                        type="primary"
-                                                        size="small"
-                                                        circle
-                                                        :loading="variantRunning[id]"
-                                                        :disabled="isAnyVariantRunning && !variantRunning[id]"
-                                                        @click="() => runVariant(id)"
-                                                        :data-testid="getVariantRunTestId(id)"
-                                                    >
-                                                        <template #icon>
-                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                                                                <path d="M8 5v14l11-7z" />
-                                                            </svg>
-                                                        </template>
-                                                    </NButton>
-                                                </template>
-                                                {{ t('test.layout.runThisColumn') }}
-                                            </NTooltip>
+                                            <ThemedTooltip :label="t('test.layout.runThisColumn')">
+                                                <NButton
+                                                    type="primary"
+                                                    size="small"
+                                                    circle
+                                                    :loading="variantRunning[id]"
+                                                    :disabled="isAnyVariantRunning && !variantRunning[id]"
+                                                    @click="() => runVariant(id)"
+                                                    :data-testid="getVariantRunTestId(id)"
+                                                >
+                                                    <template #icon>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                                            <path d="M8 5v14l11-7z" />
+                                                        </svg>
+                                                    </template>
+                                                </NButton>
+                                            </ThemedTooltip>
                                         </div>
                                     </div>
                                 </div>
@@ -530,7 +581,7 @@ import { ref, reactive, computed, inject, nextTick, watch, onMounted, onUnmounte
 import { storeToRefs } from 'pinia'
 
 import { useI18n } from "vue-i18n";
-import { NCard, NFlex, NText, NIcon, NButton, NRadioGroup, NRadioButton, NTooltip, NTag } from "naive-ui";
+import { NCard, NFlex, NText, NIcon, NButton, NRadioGroup, NRadioButton, NTag } from "naive-ui";
 import { useToast } from "../../composables/ui/useToast";
 import InputPanelUI from "../InputPanel.vue";
 import PromptPanelUI from "../PromptPanel.vue";
@@ -539,7 +590,10 @@ import ContextUserTestPanel from "./ContextUserTestPanel.vue";
 import OutputDisplay from "../OutputDisplay.vue";
 import SaveTestResultExampleButton from '../SaveTestResultExampleButton.vue'
 import SelectWithConfig from "../SelectWithConfig.vue";
+import TextModelQuickSwitch from "../TextModelQuickSwitch.vue";
 import TestPanelVersionSelect from '../TestPanelVersionSelect.vue'
+import TestSourceLinkedCard from '../TestSourceLinkedCard.vue'
+import TestVariantSourceTag from '../TestVariantSourceTag.vue'
 import {
     AnalyzeActionIcon,
     CompareHelpButton,
@@ -551,6 +605,7 @@ import {
 } from '../evaluation'
 import { buildCompareToolbarStatus } from '../evaluation/compare-ui'
 import WorkspaceUtilityMenu from '../common/WorkspaceUtilityMenu.vue'
+import ThemedTooltip from '../common/ThemedTooltip.vue'
 import { resolveSourceAssetRef } from '../../utils/source-asset'
 import {
     applyPatchOperationsToText,
@@ -574,7 +629,7 @@ import { useLocalPromptPreviewPanel } from '../../composables/prompt/useLocalPro
 import { useVariableAwareInputBridge } from '../../composables/variable/useVariableAwareInputBridge'
 import { useContextUserOptimization } from '../../composables/prompt/useContextUserOptimization';
 import type { ConversationMessage } from '../../types/variable'
-import { useCompareRoleConfig, useEvaluationHandler, provideEvaluation, provideProContext, buildCompareEvaluationPayload } from '../../composables/prompt';
+import { useCompareRoleConfig, useEvaluationHandler, provideEvaluation, provideProContext, buildCompareEvaluationPayload, useTestSourceAreaFeedback, useTestVariantSourceFeedback } from '../../composables/prompt';
 import {
     useProVariableSession,
     type TestPanelVersionValue,
@@ -922,7 +977,8 @@ const templateSelection = useWorkspaceTemplateSelection(
 // Variable value generation uses ContextUserTestPanel and requires a model key.
 // If the app-level evaluation model key isn't configured, fall back to the selected optimize model.
 const effectiveEvaluationModelKey = computed(() => {
-    return props.evaluationModelKey || modelSelection.selectedOptimizeModelKey.value || ''
+    return props.evaluationModelKey || modelSelection.selectedOptimizeModelKey.value ||
+        variantBModelKeyModel.value || variantAModelKeyModel.value || proVariableSession.selectedTestModelKey || ''
 })
 
 const patchSessionOptimizedResult = (
@@ -1187,9 +1243,27 @@ const variantRunning = reactive<Record<TestVariantId, boolean>>({
     d: false,
 })
 
+const { variantSourceFeedback, pulseVariantSource } =
+    useTestVariantSourceFeedback<TestVariantId>(['a', 'b', 'c', 'd'])
+const { sourceAreaFeedback, pulseSourceAreaForSelection } =
+    useTestSourceAreaFeedback()
+
 const isAnyVariantRunning = computed(() => activeVariantIds.value.some((id) => !!variantRunning[id]))
 
 const getVariantLabel = (id: TestVariantId) => ({ a: 'A', b: 'B', c: 'C', d: 'D' }[id])
+
+const handleVariantVersionChange = (id: TestVariantId, value: string | number) => {
+    const selection = value as TestPanelVersionValue
+    variantVersionModels[id].value = selection
+    activateVariantSource(id)
+}
+
+const activateVariantSource = (id: TestVariantId) => {
+    const selection = variantVersionModels[id].value
+    const resolved = resolveTestPrompt(selection)
+    pulseVariantSource(id, 'change')
+    pulseSourceAreaForSelection(selection, resolved.resolvedVersion, 'change')
+}
 
 const getVariantVersionTestId = (id: TestVariantId) => {
     if (id === 'a') return 'pro-variable-test-original-version-select'
@@ -1246,6 +1320,9 @@ const getVariantVersionLabel = (id: TestVariantId): string => {
         getTestPanelVersionLabels(),
     )
 }
+
+const getVariantResolvedVersion = (id: TestVariantId): number =>
+    resolveTestPrompt(variantVersionModels[id].value).resolvedVersion
 
 const compareReadyVariantIds = computed(() =>
     activeVariantIds.value.filter((id) => hasVariantResult(id) && !isVariantStale(id))
@@ -1319,6 +1396,8 @@ const getVariantTestInput = (id: TestVariantId): VariantTestInput | null => {
                 ? 'test.error.noOriginalPrompt'
                 : 'test.error.noOptimizedPrompt'
         toast.error(t(key))
+        pulseVariantSource(id, 'error')
+        pulseSourceAreaForSelection(variantVersionModels[id].value, resolved.resolvedVersion, 'error')
         return null
     }
 

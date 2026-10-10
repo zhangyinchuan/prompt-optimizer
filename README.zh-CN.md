@@ -14,9 +14,9 @@
 ![GitHub forks](https://img.shields.io/github/forks/linshenkx/prompt-optimizer?style=flat)
 [![Deploy with Vercel](https://img.shields.io/badge/Vercel-indigo?style=flat&logo=vercel)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flinshenkx%2Fprompt-optimizer)
 
-[官网](https://always200.com) | [在线优化器](https://prompt.always200.com) | [提示词库](https://garden.always200.com) | [文档站](https://docs.always200.com) | [快速开始](#快速开始) | [Chrome插件](https://chromewebstore.google.com/detail/prompt-optimizer/cakkkhboolfnadechdlgdcnjammejlna) | [💖赞助支持](images/other/sponsor_wx.jpg)
+[官网](https://always200.com) | [在线优化器](https://prompt.always200.com) | [提示词库](https://garden.always200.com) | [文档站](https://docs.always200.com) | [首次使用教程](https://docs.always200.com/user/quick-start/) | [Chrome插件](https://chromewebstore.google.com/detail/prompt-optimizer/cakkkhboolfnadechdlgdcnjammejlna) | [💖赞助支持](images/other/sponsor_wx.jpg)
 
-[开发文档](dev.md) | [Vercel部署指南](docs/user/deployment/vercel.md) | [MCP部署使用说明](docs/user/mcp-server.md) | [DeepWiki文档](https://deepwiki.com/linshenkx/prompt-optimizer) | [ZRead文档](https://zread.ai/linshenkx/prompt-optimizer)
+[开发文档](docs/developer/development.md) | [Vercel部署指南](docs/user/deployment/vercel.md) | [Cloudflare部署指南](docs/user/deployment/cloudflare-pages.md) | [MCP部署使用说明](docs/user/mcp-server.md) | [DeepWiki文档](https://deepwiki.com/linshenkx/prompt-optimizer) | [ZRead文档](https://zread.ai/linshenkx/prompt-optimizer)
 
 </div>
 
@@ -47,8 +47,8 @@ Prompt Optimizer是一个强大的AI提示词优化工具，帮助你编写更�
 - 🎯 **智能优化**：一键优化提示词，支持多轮迭代改进，提升AI回复准确度
 - 📝 **双模式优化**：支持系统提示词优化和用户提示词优化，满足不同使用场景
 - 🔄 **分析与对比评估**：支持分析、单结果评估和多结果对比评估，帮助判断提示词是否真的改进
-- 🤖 **多模型集成**：支持OpenAI、Gemini、DeepSeek、智谱AI、SiliconFlow、MiniMax等主流AI模型
-- 🖼️ **图像生成**：支持文生图（T2I）、图生图（I2I）和多图生图，集成Gemini、Seedream等图像模型
+- 🤖 **多模型集成**：支持OpenAI、Gemini、DeepSeek、Grok、智谱AI、SiliconFlow、MiniMax等主流AI模型
+- 🖼️ **图像生成**：支持文生图（T2I）、图生图（I2I）和多图生图，集成Gemini、Seedream、Grok等图像模型
 - 🌱 **提示词来源**：可从手写、模板、本地导入或提示词库导入码开始
 - ⭐ **智能收藏**：资源感知的提示词资产，支持版本历史、可复现示例、媒体支持、来源绑定和工作区应用
 - 📊 **高级测试模式**：上下文变量管理、多轮会话测试、工具调用（Function Calling）支持
@@ -63,7 +63,7 @@ Prompt Optimizer是一个强大的AI提示词优化工具，帮助你编写更�
 - 🖼️ **文生图（T2I）**：通过文本提示词生成图像
 - 🎨 **图生图（I2I）**：基于本地图片进行图像变换和优化
 - 🖼️ **多图生图**：使用多张输入图共同约束主体关系、顺序语义与最终生成目标
-- 🔌 **多模型支持**：集成Gemini、Seedream等主流图像生成模型
+- 🔌 **多模型支持**：集成Gemini、Seedream、Grok等主流图像生成模型
 - ⚙️ **模型参数**：支持各模型特有参数配置（如尺寸、风格等）
 - 📥 **预览与下载**：实时预览生成结果，支持下载保存
 - 🔄 **风格迁移**：从参考图中学习风格、构图和色彩
@@ -89,9 +89,13 @@ Prompt Optimizer是一个强大的AI提示词优化工具，帮助你编写更�
 
 直接访问：[https://prompt.always200.com](https://prompt.always200.com)
 
+第一次使用需要先在 **模型管理** 中接入一个可用的文本模型，再运行优化。按[首次使用教程](https://docs.always200.com/user/quick-start/)可从配置走到复制结果。
+
 项目是纯前端项目，所有数据只存储在浏览器本地，不会上传至任何服务器，因此直接使用在线版本也是安全可靠的
 
-### 2. Vercel部署
+### 2. Web部署
+
+#### Vercel部署
 方式1：一键部署到自己的Vercel(方便，但后续无法自动更新)：
    [![部署到 Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flinshenkx%2Fprompt-optimizer)
 
@@ -101,10 +105,19 @@ Prompt Optimizer是一个强大的AI提示词优化工具，帮助你编写更�
    - 可跟踪源项目更新，便于同步最新功能和修复
 - 配置环境变量：
   - `ACCESS_PASSWORD`：设置访问密码，启用访问限制
-  - `VITE_OPENAI_API_KEY`等：配置各AI服务商的API密钥
+  - `VITE_OPENAI_API_KEY` 等：仅用于私有部署的可选模型配置。公开前端部署不要预置 API 密钥，因为 `VITE_*` 值会暴露在浏览器资源中。
 
 更多详细的部署步骤和注意事项，请查看：
 - [Vercel部署指南](docs/user/deployment/vercel.md)
+- [Cloudflare部署指南](docs/user/deployment/cloudflare-pages.md)
+
+#### Cloudflare 部署
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/linshenkx/prompt-optimizer)
+
+公开仓库用户优先使用 Deploy to Cloudflare 按钮，它会在你的 GitHub/GitLab 账号下创建仓库并用 Workers Builds 部署。需要私有仓库或更严格的仓库权限控制时，再手动导入自己的仓库；保持默认部署命令，如果 Cloudflare 自动填入 `pnpm run build`，请清空构建命令，因为 `wrangler.jsonc` 会构建 Web 前端并把 `packages/web/dist` 发布为静态资源。
+
+Cloudflare 上的访问控制和访问分析建议分别使用 Cloudflare Access 和 Cloudflare Web Analytics，在 Cloudflare 控制台配置即可，不需要安装前端依赖或修改应用代码。
 
 ### 3. 下载桌面应用
 从 [GitHub Releases](https://github.com/linshenkx/prompt-optimizer/releases) 下载最新版本。我们为各平台提供**安装程序**和**压缩包**两种格式。
@@ -151,15 +164,16 @@ docker run -d -p 8081:80 \
 git clone https://github.com/linshenkx/prompt-optimizer.git
 cd prompt-optimizer
 
-# 2. 可选：创建.env文件配置API密钥和访问认证
+# 2. 创建 .env 文件配置 API 密钥和访问认证
 cp env.local.example .env
 # 编辑 .env 文件，填入实际的 API 密钥和配置
+# docker-compose.yml 位于 docker/ 目录下，所以后续命令显式传入根目录 .env
 
 # 3. 启动服务
-docker compose up -d
+docker compose --env-file .env -f docker/docker-compose.yml up -d
 
 # 4. 查看日志
-docker compose logs -f
+docker compose --env-file .env -f docker/docker-compose.yml logs -f
 
 # 5. 访问服务
 Web 界面：http://localhost:8081
@@ -167,9 +181,9 @@ MCP 服务器：http://localhost:8081/mcp
 ```
 </details>
 
-你还可以直接编辑docker-compose.yml文件，自定义配置：
+你还可以直接编辑 docker/docker-compose.yml 文件，自定义配置：
 <details>
-<summary>点击查看 docker-compose.yml 示例</summary>
+<summary>点击查看 docker/docker-compose.yml 示例</summary>
 
 ```yaml
 services:
@@ -186,6 +200,7 @@ services:
       # API密钥配置
       - VITE_OPENAI_API_KEY=your_openai_key
       - VITE_GEMINI_API_KEY=your_gemini_key
+      - VITE_GROK_API_KEY=your_xai_key
       # 访问控制（可选）
       - ACCESS_USERNAME=admin
       - ACCESS_PASSWORD=your_password
@@ -206,7 +221,7 @@ MCP Server 需要配置 API 密钥才能正常工作。主要的 MCP 专属配�
 
 ```bash
 # MCP 服务器配置
-MCP_DEFAULT_MODEL_PROVIDER=openai  # 可选值：openai, gemini, anthropic, deepseek, siliconflow, zhipu, dashscope, openrouter, modelscope, custom
+MCP_DEFAULT_MODEL_PROVIDER=openai  # 可选值：openai, gemini, anthropic, deepseek, grok, siliconflow, zhipu, dashscope, openrouter, modelscope, custom
 MCP_LOG_LEVEL=info                 # 日志级别
 ```
 
@@ -266,11 +281,11 @@ docker run -d -p 8081:80 \
 ### 方式一：通过界面配置（推荐）
 1. 点击界面右上角的"⚙️设置"按钮
 2. 选择"模型管理"选项卡
-3. 点击需要配置的模型（如OpenAI、Gemini、DeepSeek等）
+3. 点击需要配置的模型（如OpenAI、Gemini、DeepSeek、Grok等）
 4. 在弹出的配置框中输入对应的API密钥
 5. 点击"保存"即可
 
-支持的模型：OpenAI、Gemini、DeepSeek、Zhipu智谱、SiliconFlow、自定义API（OpenAI兼容接口）
+支持的模型：OpenAI、Gemini、DeepSeek、Grok、Zhipu智谱、SiliconFlow、自定义API（OpenAI兼容接口）
 
 除了API密钥，您还可以在模型配置界面为每个模型单独设置高级LLM参数。这些参数通过一个名为 `llmParams` 的字段进行配置，它允许您以键值对的形式指定LLM SDK支持的任何参数，从而更精细地控制模型行为。
 
@@ -288,6 +303,7 @@ Docker部署时通过 `-e` 参数配置环境变量：
 -e VITE_OPENAI_API_KEY=your_key
 -e VITE_GEMINI_API_KEY=your_key
 -e VITE_DEEPSEEK_API_KEY=your_key
+-e VITE_GROK_API_KEY=your_key
 -e VITE_ZHIPU_API_KEY=your_key
 -e VITE_SILICONFLOW_API_KEY=your_key
 
@@ -302,7 +318,7 @@ Docker部署时通过 `-e` 参数配置环境变量：
 </details>
 
 ## 本地开发
-详细文档可查看 [开发文档](dev.md)
+详细文档可查看 [开发文档](docs/developer/development.md)
 
 <details>
 <summary>点击查看本地开发命令</summary>
@@ -346,6 +362,7 @@ pnpm dev:fresh        # 完整重置并重新启动开发环境
 - [项目状态](docs/project/project-status.md) - 当前进度和计划
 - [产品需求](docs/project/prd.md) - 产品需求文档
 - [Vercel部署指南](docs/user/deployment/vercel.md) - Vercel部署详细说明
+- [Cloudflare部署指南](docs/user/deployment/cloudflare-pages.md) - 在 Cloudflare Workers / Pages 上部署 Web 前端
 
 
 ## Star History

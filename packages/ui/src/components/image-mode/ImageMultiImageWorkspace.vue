@@ -19,7 +19,12 @@
           size="medium"
           :style="{ overflow: 'auto', height: '100%', minHeight: 0 }"
         >
-          <NCard :style="{ flexShrink: 0 }">
+          <TestSourceLinkedCard
+            :style="{ flexShrink: 0 }"
+            :feedback-key="sourceAreaFeedback.original.key"
+            :feedback-tone="sourceAreaFeedback.original.tone"
+            :source-tone="sourceAreaFeedback.original.sourceTone"
+          >
             <NFlex
               v-if="isInputPanelCollapsed"
               justify="space-between"
@@ -214,9 +219,17 @@
               <NGrid :cols="24" :x-gap="8" responsive="screen">
                 <NGridItem :span="7" :xs="24" :sm="7">
                   <NSpace vertical :size="8">
-                    <NText :depth="2" style="font-size: 14px; font-weight: 500;">
-                      {{ t('imageWorkspace.input.textModel') }}
-                    </NText>
+                    <NFlex align="center" :size="6" :wrap="false">
+                      <NText :depth="2" style="font-size: 14px; font-weight: 500; flex-shrink: 0;">
+                        {{ t('imageWorkspace.input.textModel') }}
+                      </NText>
+                      <TextModelQuickSwitch
+                        :model-key="selectedTextModelKey"
+                        :options="textModelOptions"
+                        :refresh-models="modelSelection.refreshTextModels"
+                        :disabled="optimizing || isIterating"
+                      />
+                    </NFlex>
                     <SelectWithConfig
                       data-testid="image-multiimage-text-model-select"
                       v-model="selectedTextModelKey"
@@ -286,11 +299,14 @@
                 </NGridItem>
               </NGrid>
             </NSpace>
-          </NCard>
+          </TestSourceLinkedCard>
 
-          <NCard
+          <TestSourceLinkedCard
             :style="{ flex: 1, minHeight: '200px', overflow: 'hidden' }"
             content-style="height: 100%; max-height: 100%; overflow: hidden;"
+            :feedback-key="sourceAreaFeedback.workspace.key"
+            :feedback-tone="sourceAreaFeedback.workspace.tone"
+            :source-tone="sourceAreaFeedback.workspace.sourceTone"
           >
             <PromptPanelUI
               v-if="services && services.templateManager"
@@ -304,6 +320,9 @@
               v-model:selected-iterate-template="selectedIterateTemplate"
               :versions="currentVersions"
               :current-version-id="currentVersionId"
+              :source-feedback-key="sourceAreaFeedback.workspace.key"
+              :source-feedback-tone="sourceAreaFeedback.workspace.tone"
+              :source-feedback-version="sourceAreaFeedback.workspace.resolvedVersion"
               :optimization-mode="optimizationMode"
               :advanced-mode-enabled="advancedModeEnabled"
               :show-preview="true"
@@ -318,7 +337,7 @@
               @apply-patch="handleApplyPatch"
               @open-preview="handleOpenPromptPreview"
             />
-          </NCard>
+          </TestSourceLinkedCard>
         </NFlex>
       </div>
 
@@ -375,9 +394,22 @@
                   :class="{ 'variant-cell__controls--stacked': useStackedVariantControls }"
                 >
                   <div class="variant-cell__meta">
-                    <NTag size="small" :bordered="false" class="variant-cell__label">
-                      {{ getVariantLabel(id) }}
-                    </NTag>
+                    <TestVariantSourceTag
+                      class="variant-cell__label"
+                      :variant-label="getVariantLabel(id)"
+                      :selection="variantVersionModels[id].value"
+                      :resolved-version="getVariantResolvedVersion(id)"
+                      :labels="getTestPanelVersionLabels()"
+                      :feedback-key="variantSourceFeedback[id].key"
+                      :feedback-tone="variantSourceFeedback[id].tone"
+                      @activate="activateVariantSource(id)"
+                    />
+                    <ImageModelQuickSwitch
+                      :model-key="variantModelKeyModels[id].value"
+                      :options="imageModelOptions"
+                      :refresh-models="refreshImageModelsHandler"
+                      :disabled="variantRunning[id]"
+                    />
                   </div>
 
                   <div class="variant-cell__actions">
@@ -386,7 +418,7 @@
                       :options="versionOptions"
                       :disabled="variantRunning[id]"
                       :test-id="getVariantVersionTestId(id)"
-                      @update:value="(value) => { variantVersionModels[id].value = value as TestPanelVersionValue }"
+                      @update:value="(value) => handleVariantVersionChange(id, value)"
                     />
 
                     <div class="variant-cell__model">
@@ -404,6 +436,7 @@
                         filterable
                         :show-config-action="!!appOpenModelManager"
                         :show-empty-config-c-t-a="true"
+                        @focus="refreshImageModelsHandler"
                         @config="() => appOpenModelManager && appOpenModelManager('image')"
                         style="min-width: 0; width: 100%;"
                       />
@@ -418,28 +451,25 @@
                     </div>
 
                     <div class="variant-cell__run">
-                      <NTooltip trigger="hover">
-                        <template #trigger>
-                          <span class="variant-cell__run-trigger">
-                            <NButton
-                              type="primary"
-                              size="small"
-                              circle
-                              :loading="variantRunning[id]"
-                              :disabled="variantRunning[id] || isVariantModelUnsupported(id)"
-                              :data-testid="getVariantRunTestId(id)"
-                              @click="runVariant(id)"
-                            >
-                              <template #icon>
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                                  <path d="M8 5v14l11-7z" />
-                                </svg>
-                              </template>
-                            </NButton>
-                          </span>
-                        </template>
-                        {{ getVariantRunTooltip(id) }}
-                      </NTooltip>
+                      <ThemedTooltip :label="getVariantRunTooltip(id)">
+                        <span class="variant-cell__run-trigger">
+                          <NButton
+                            type="primary"
+                            size="small"
+                            circle
+                            :loading="variantRunning[id]"
+                            :disabled="variantRunning[id] || isVariantModelUnsupported(id)"
+                            :data-testid="getVariantRunTestId(id)"
+                            @click="runVariant(id)"
+                          >
+                            <template #icon>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </template>
+                          </NButton>
+                        </span>
+                      </ThemedTooltip>
                     </div>
                   </div>
                 </div>
@@ -589,7 +619,7 @@
 
 <script setup lang="ts">
 import { computed, inject, nextTick, onMounted, onUnmounted, reactive, ref, watch, toRef, type Ref } from 'vue'
-import { NButton, NCard, NEmpty, NFlex, NGrid, NGridItem, NIcon, NInput, NRadioButton, NRadioGroup, NSpace, NTag, NText, NTooltip } from 'naive-ui'
+import { NButton, NCard, NEmpty, NFlex, NGrid, NGridItem, NIcon, NInput, NRadioButton, NRadioGroup, NSpace, NText } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import {
   applyPatchOperationsToText,
@@ -608,6 +638,7 @@ import {
 import type { AppServices } from '../../types/services'
 import { useImageMultiImageSession, type TestColumnCount, type TestPanelVersionValue, type TestVariantId } from '../../stores/session/useImageMultiImageSession'
 import { useImageGeneration } from '../../composables/image/useImageGeneration'
+import { useImageInputPreparation } from '../../composables/image/useImageInputPreparation'
 import { useTemporaryVariables } from '../../composables/variable/useTemporaryVariables'
 import { useTestVariableManager } from '../../composables/variable/useTestVariableManager'
 import { useVariableAwareInputBridge } from '../../composables/variable/useVariableAwareInputBridge'
@@ -616,6 +647,8 @@ import { useToast } from '../../composables/ui/useToast'
 import { useFullscreen } from '../../composables/ui/useFullscreen'
 import { useEvaluationHandler } from '../../composables/prompt/useEvaluationHandler'
 import { provideEvaluation } from '../../composables/prompt/useEvaluationContext'
+import { useTestSourceAreaFeedback } from '../../composables/prompt/useTestSourceAreaFeedback'
+import { useTestVariantSourceFeedback } from '../../composables/prompt/useTestVariantSourceFeedback'
 import { useFunctionModelManager } from '../../composables/model'
 import { useWorkspaceTextModelSelection } from '../../composables/workspaces/useWorkspaceTextModelSelection'
 import { useWorkspaceTemplateSelection } from '../../composables/workspaces/useWorkspaceTemplateSelection'
@@ -634,12 +667,17 @@ import { OptionAccessors } from '../../utils/data-transformer'
 import type { VariableManagerHooks } from '../../composables/prompt/useVariableManager'
 import PromptPanelUI from '../PromptPanel.vue'
 import PromptPreviewPanel from '../PromptPreviewPanel.vue'
+import ImageModelQuickSwitch from '../ImageModelQuickSwitch.vue'
 import SelectWithConfig from '../SelectWithConfig.vue'
+import TextModelQuickSwitch from '../TextModelQuickSwitch.vue'
+import TestSourceLinkedCard from '../TestSourceLinkedCard.vue'
+import TestVariantSourceTag from '../TestVariantSourceTag.vue'
 import FullscreenDialog from '../FullscreenDialog.vue'
 import AppPreviewImage from '../media/AppPreviewImage.vue'
 import { VariableAwareInput } from '../variable-extraction'
 import TemporaryVariablesPanel from '../variable/TemporaryVariablesPanel.vue'
 import WorkspaceUtilityMenu from '../common/WorkspaceUtilityMenu.vue'
+import ThemedTooltip from '../common/ThemedTooltip.vue'
 import VariableValuePreviewDialog from '../variable/VariableValuePreviewDialog.vue'
 import TestPanelVersionSelect from '../TestPanelVersionSelect.vue'
 import ImageTokenUsage from './ImageTokenUsage.vue'
@@ -648,11 +686,12 @@ import { EvaluationPanel } from '../evaluation'
 
 const { t } = useI18n()
 const toast = useToast()
+const { prepareInputRefs: prepareImageInputRefs } = useImageInputPreparation()
 const services = inject<Ref<AppServices | null>>('services', ref(null))
 const variableManager = inject<VariableManagerHooks | null>('variableManager', null)
 const session = useImageMultiImageSession()
 const tempVarsManager = useTemporaryVariables()
-const { imageModels, loadImageModels, generateMultiImage, validateMultiImageRequest } = useImageGeneration()
+const { imageModels, isImageModelListReady, loadImageModels, generateMultiImage, validateMultiImageRequest } = useImageGeneration()
 
 interface VariantInputImageInfo {
   width?: number
@@ -687,6 +726,11 @@ const currentChainId = ref('')
 const currentVersions = ref<PromptRecordChain['versions']>([])
 const currentVersionId = ref('')
 const variantRunning = reactive<Record<TestVariantId, boolean>>({ a: false, b: false, c: false, d: false })
+
+const { variantSourceFeedback, pulseVariantSource } =
+  useTestVariantSourceFeedback<TestVariantId>(['a', 'b', 'c', 'd'])
+const { sourceAreaFeedback, pulseSourceAreaForSelection } =
+  useTestSourceAreaFeedback()
 
 const temporaryVariablePanelManager = useTestVariableManager({
   globalVariables: computed(() => variableManager?.customVariables.value || {}),
@@ -777,12 +821,7 @@ const evaluationHandler = useEvaluationHandler({
   evaluationModelKey: computed(() => selectedTextModelKey.value || ''),
   resolveEvaluationModelKey: async () => {
     await functionModelManager.initialize()
-    return (
-      functionModelManager.evaluationModel.value ||
-      selectedTextModelKey.value ||
-      functionModelManager.effectiveEvaluationModel.value ||
-      ''
-    )
+    return functionModelManager.resolveEvaluationModelKey(selectedTextModelKey.value)
   },
   functionMode: computed(() => 'image'),
   subMode: computed(() => 'multiimage'),
@@ -1007,6 +1046,19 @@ const variantModelKeyModels = { a: createVariantModelKeyModel('a'), b: createVar
 
 const getVariantLabel = (id: TestVariantId) => ({ a: 'A', b: 'B', c: 'C', d: 'D' }[id])
 
+const handleVariantVersionChange = (id: TestVariantId, value: string | number) => {
+  const selection = value as TestPanelVersionValue
+  variantVersionModels[id].value = selection
+  activateVariantSource(id)
+}
+
+const activateVariantSource = (id: TestVariantId) => {
+  const selection = variantVersionModels[id].value
+  const resolved = resolvePromptForSelection(selection)
+  pulseVariantSource(id, 'change')
+  pulseSourceAreaForSelection(selection, resolved.resolvedVersion, 'change')
+}
+
 const imageModelConfigMap = computed(() => {
   const map = new Map<string, ImageModelConfig>()
   for (const config of imageModels.value) {
@@ -1117,12 +1169,14 @@ const getVariantInputImagesInfo = (id: TestVariantId): VariantInputImageInfo[] =
   return infos
 }
 
-const versionOptions = computed(() =>
-  buildTestPanelVersionOptions(currentVersions.value || [], {
+const getTestPanelVersionLabels = () => ({
     workspace: t('test.layout.workspace'),
     previous: t('test.layout.previous'),
     original: t('test.layout.original'),
-  }, {
+})
+
+const versionOptions = computed(() =>
+  buildTestPanelVersionOptions(currentVersions.value || [], getTestPanelVersionLabels(), {
     currentVersionId: currentVersionId.value,
     workspacePrompt: session.optimizedPrompt || '',
     originalPrompt: session.originalPrompt || '',
@@ -1132,14 +1186,13 @@ const versionOptions = computed(() =>
 watch(
   () => imageModelOptions.value,
   (options) => {
+    if (!isImageModelListReady.value) return
     const validKeys = new Set(options.map((item) => item.value))
     const seed = options.find((item) => item.supportsMultiImage)?.value || options[0]?.value || ''
-    if (seed) {
-      for (const id of ALL_VARIANT_IDS) {
-        const current = variantModelKeyModels[id].value
-        if (!current || !validKeys.has(current)) {
-          session.updateTestVariant(id, { modelKey: seed })
-        }
+    for (const id of ALL_VARIANT_IDS) {
+      const current = variantModelKeyModels[id].value
+      if (!current || !validKeys.has(current)) {
+        session.updateTestVariant(id, { modelKey: seed })
       }
     }
   },
@@ -1151,6 +1204,16 @@ const queueSessionSave = () => {
   sessionSaveChain = sessionSaveChain.then(() => session.saveSession()).catch((error) => {
     console.error('[ImageMultiImageWorkspace] Failed to persist image session:', error)
   })
+  return sessionSaveChain
+}
+
+const saveSessionAfterHistoryCommit = async (reason: string) => {
+  try {
+    await session.saveSession()
+  } catch (error) {
+    console.error(`[ImageMultiImageWorkspace] Failed to persist image session after ${reason}:`, error)
+    toast.warning(t('toast.warning.saveHistoryFailed'))
+  }
 }
 
 watch(
@@ -1238,16 +1301,6 @@ const draggingImageIndex = ref<number | null>(null)
 const dragOverImageIndex = ref<number | null>(null)
 const dragOverUploadCard = ref(false)
 
-const fileToPayload = async (file: File): Promise<ImageInputRef> => {
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(reader.error || new Error('Failed to read image'))
-    reader.readAsDataURL(file)
-  })
-  return { b64: dataUrl.split(',', 2)[1] || '', mimeType: file.type || 'image/png' }
-}
-
 const triggerUpload = () => fileInputRef.value?.click()
 
 const handleFilesSelected = async (event: Event) => {
@@ -1255,7 +1308,8 @@ const handleFilesSelected = async (event: Event) => {
   const files = Array.from(input.files || [])
   if (files.length === 0) return
   try {
-    const payloads = await Promise.all(files.map(fileToPayload))
+    const payloads = await prepareImageInputRefs(files)
+    if (!payloads) return
     for (const payload of payloads) {
       await session.addInputImage(payload)
     }
@@ -1433,6 +1487,7 @@ const createHistoryRecord = async () => {
     chainId: chain.chainId,
     versionId: chain.currentRecord.id,
   })
+  await saveSessionAfterHistoryCommit('optimization commit')
 }
 
 const optimizePrompt = async () => {
@@ -1540,6 +1595,7 @@ const handleIteratePrompt = async (payload: {
                 chainId: updatedChain.chainId,
                 versionId: updatedChain.currentRecord.id,
               })
+              await saveSessionAfterHistoryCommit('iteration commit')
             } else {
               await createHistoryRecord()
             }
@@ -1644,6 +1700,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
       chainId: chain.chainId,
       versionId: chain.currentRecord.id,
     })
+    await saveSessionAfterHistoryCommit('local edit commit')
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('prompt-optimizer:history-refresh'))
@@ -1674,6 +1731,9 @@ const resolvePromptForSelection = (selection: TestPanelVersionValue) =>
     originalPrompt: session.originalPrompt || '',
   })
 
+const getVariantResolvedVersion = (id: TestVariantId): number =>
+  resolvePromptForSelection(variantVersionModels[id].value).resolvedVersion
+
 const getVariantRequest = (id: TestVariantId) => {
   const modelKey = (variantModelKeyModels[id].value || '').trim()
   if (!modelKey) {
@@ -1688,6 +1748,8 @@ const getVariantRequest = (id: TestVariantId) => {
   const resolved = resolvePromptForSelection(variantVersionModels[id].value)
   if (!resolved.text?.trim()) {
     toast.error(t('imageWorkspace.generation.missingRequiredFields'))
+    pulseVariantSource(id, 'error')
+    pulseSourceAreaForSelection(variantVersionModels[id].value, resolved.resolvedVersion, 'error')
     return null
   }
   const varsForRequest = {

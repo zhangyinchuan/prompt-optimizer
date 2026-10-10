@@ -21,7 +21,12 @@
                     size="medium"
                 >
             <!-- 输入控制区域 - 对齐InputPanel布局 -->
-            <NCard :style="{ flexShrink: 0 }">
+            <TestSourceLinkedCard
+                :style="{ flexShrink: 0 }"
+                :feedback-key="sourceAreaFeedback.original.key"
+                :feedback-tone="sourceAreaFeedback.original.tone"
+                :source-tone="sourceAreaFeedback.original.sourceTone"
+            >
                 <!-- 折叠态：只显示标题栏 -->
                 <NFlex
                     v-if="isInputPanelCollapsed"
@@ -41,6 +46,14 @@
                         </NText>
                     </NFlex>
                     <NFlex align="center" :size="8">
+                        <PromptGardenInspirationPopover
+                            mode="image-text2image"
+                            :has-prompt="!!originalPrompt.trim()"
+                            :disabled="isPromptGardenGuideDisabled"
+                            test-id="image-text2image-prompt-garden-inspiration"
+                            @apply="handlePromptGardenImportConfirm"
+                            @open-import="showPromptGardenImport = true"
+                        />
                         <NFlex align="center" :size="6" class="reference-action-toolbar">
                             <NTooltip
                                 v-for="button in referenceActionButtons"
@@ -135,6 +148,14 @@
                             }}</NText
                         >
                         <NFlex align="center" :size="8">
+                            <PromptGardenInspirationPopover
+                                mode="image-text2image"
+                                :has-prompt="!!originalPrompt.trim()"
+                                :disabled="isPromptGardenGuideDisabled"
+                                test-id="image-text2image-prompt-garden-inspiration"
+                                @apply="handlePromptGardenImportConfirm"
+                                @open-import="showPromptGardenImport = true"
+                            />
                             <NFlex align="center" :size="6" class="reference-action-toolbar">
                                 <NTooltip
                                     v-for="button in referenceActionButtons"
@@ -288,70 +309,29 @@
                         :disabled="isOptimizing"
                     />
 
-                    <div
-                        v-if="showPromptGardenEmptyGuide"
-                        class="prompt-garden-empty-guide"
-                        data-testid="image-text2image-prompt-garden-guide"
-                    >
-                        <div class="prompt-garden-empty-guide__icon">
-                            <NIcon>
-                                <Plant2 />
-                            </NIcon>
-                        </div>
-                        <div class="prompt-garden-empty-guide__copy">
-                            <NText strong>
-                                {{ t('common.promptGarden.text2ImageGuideTitle') }}
-                            </NText>
-                            <NText depth="3" class="prompt-garden-empty-guide__hint">
-                                {{ t('common.promptGarden.text2ImageGuideHint') }}
-                            </NText>
-                        </div>
-                        <div class="prompt-garden-empty-guide__actions">
-                            <NButton
-                                size="small"
-                                secondary
-                                :disabled="isPromptGardenGuideDisabled"
-                                data-testid="image-text2image-prompt-garden-discover"
-                                @click="handlePromptGardenDiscover"
-                            >
-                                <template #icon>
-                                    <NIcon>
-                                        <ExternalLink />
-                                    </NIcon>
-                                </template>
-                                {{ t('common.promptGarden.discoverShort') }}
-                            </NButton>
-                            <NButton
-                                size="small"
-                                secondary
-                                :disabled="isPromptGardenGuideDisabled"
-                                data-testid="image-text2image-prompt-garden-import"
-                                @click="showPromptGardenImport = true"
-                            >
-                                <template #icon>
-                                    <NIcon>
-                                        <FileImport />
-                                    </NIcon>
-                                </template>
-                                {{ t('common.promptGarden.importShort') }}
-                            </NButton>
-                        </div>
-                    </div>
-
                     <!-- 控制面板 - 使用网格布局 -->
                     <NGrid :cols="24" :x-gap="8" responsive="screen">
                         <!-- 文本模型选择 -->
                         <NGridItem :span="7" :xs="24" :sm="7">
                             <NSpace vertical :size="8">
-                                <NText
-                                    :depth="2"
-                                    style="font-size: 14px; font-weight: 500"
-                                    >{{
-                                        t("imageWorkspace.input.textModel")
-                                    }}</NText
-                                >
+                                <NFlex align="center" :size="6" :wrap="false">
+                                    <NText
+                                        :depth="2"
+                                        style="font-size: 14px; font-weight: 500; flex-shrink: 0;"
+                                        >{{
+                                            t("imageWorkspace.input.textModel")
+                                        }}</NText
+                                    >
+                                    <TextModelQuickSwitch
+                                        :model-key="selectedTextModelKey"
+                                        :options="textModelOptions"
+                                        :refresh-models="modelSelection.refreshTextModels"
+                                        :disabled="isOptimizing"
+                                    />
+                                </NFlex>
                                 <template v-if="appOpenModelManager">
                                     <SelectWithConfig
+                                        data-testid="image-text2image-text-model-select"
                                         v-model="selectedTextModelKey"
                                         :options="textModelOptions"
                                         :getPrimary="OptionAccessors.getPrimary"
@@ -379,6 +359,7 @@
                                 </template>
                                 <template v-else>
                                     <SelectWithConfig
+                                        data-testid="image-text2image-text-model-select"
                                         v-model="selectedTextModelKey"
                                         :options="textModelOptions"
                                         :getPrimary="OptionAccessors.getPrimary"
@@ -499,7 +480,7 @@
                         </NGridItem>
                     </NGrid>
                 </NSpace>
-            </NCard>
+            </TestSourceLinkedCard>
 
             <input
                 ref="extractImageInputRef"
@@ -510,9 +491,12 @@
             />
 
             <!-- 优化结果区域 - 使用与基础模式一致的卡片容器 -->
-            <NCard
+            <TestSourceLinkedCard
                 :style="{ flex: 1, minHeight: '200px', overflow: 'hidden' }"
                 content-style="height: 100%; max-height: 100%; overflow: hidden;"
+                :feedback-key="sourceAreaFeedback.workspace.key"
+                :feedback-tone="sourceAreaFeedback.workspace.tone"
+                :source-tone="sourceAreaFeedback.workspace.sourceTone"
             >
                 <PromptPanelUI
                     v-if="services && services.templateManager"
@@ -526,6 +510,9 @@
                     v-model:selected-iterate-template="selectedIterateTemplate"
                     :versions="currentVersions"
                     :current-version-id="currentVersionId"
+                    :source-feedback-key="sourceAreaFeedback.workspace.key"
+                    :source-feedback-tone="sourceAreaFeedback.workspace.tone"
+                    :source-feedback-version="sourceAreaFeedback.workspace.resolvedVersion"
                     :optimization-mode="optimizationMode"
                     :advanced-mode-enabled="advancedModeEnabled"
                     :show-preview="true"
@@ -540,7 +527,7 @@
                     @apply-patch="handleApplyPatch"
                     @open-preview="handleOpenPromptPreview"
                 />
-            </NCard>
+            </TestSourceLinkedCard>
                 </NFlex>
             </div>
 
@@ -643,9 +630,22 @@
                                     :class="{ 'variant-cell__controls--stacked': useStackedVariantControls }"
                                 >
                                     <div class="variant-cell__meta">
-                                        <NTag size="small" :bordered="false" class="variant-cell__label">
-                                            {{ getVariantLabel(id) }}
-                                        </NTag>
+                                        <TestVariantSourceTag
+                                            class="variant-cell__label"
+                                            :variant-label="getVariantLabel(id)"
+                                            :selection="variantVersionModels[id].value"
+                                            :resolved-version="getVariantResolvedVersion(id)"
+                                            :labels="getTestPanelVersionLabels()"
+                                            :feedback-key="variantSourceFeedback[id].key"
+                                            :feedback-tone="variantSourceFeedback[id].tone"
+                                            @activate="activateVariantSource(id)"
+                                        />
+                                        <ImageModelQuickSwitch
+                                            :model-key="variantModelKeyModels[id].value"
+                                            :options="imageModelOptions"
+                                            :refresh-models="refreshImageModels"
+                                            :disabled="variantRunning[id]"
+                                        />
                                     </div>
 
                                     <div class="variant-cell__actions">
@@ -654,7 +654,7 @@
                                             :options="versionOptions"
                                             :disabled="variantRunning[id]"
                                             :test-id="getVariantVersionTestId(id)"
-                                            @update:value="(value) => { variantVersionModels[id].value = value as TestPanelVersionValue }"
+                                            @update:value="(value) => handleVariantVersionChange(id, value)"
                                         />
 
                                         <div class="variant-cell__model">
@@ -672,32 +672,30 @@
                                                 filterable
                                                 :show-config-action="!!appOpenModelManager"
                                                 :show-empty-config-c-t-a="true"
+                                                @focus="refreshImageModels"
                                                 @config="() => appOpenModelManager && appOpenModelManager('image')"
                                                 style="min-width: 0; width: 100%;"
                                             />
                                         </div>
 
                                         <div class="variant-cell__run">
-                                            <NTooltip trigger="hover">
-                                                <template #trigger>
-                                                    <NButton
-                                                        type="primary"
-                                                        size="small"
-                                                        circle
-                                                        :loading="variantRunning[id]"
-                                                        :disabled="variantRunning[id]"
-                                                        @click="() => runVariant(id)"
-                                                        :data-testid="getVariantRunTestId(id)"
-                                                    >
+                                            <ThemedTooltip :label="t('test.layout.runThisColumn')">
+                                                <NButton
+                                                    type="primary"
+                                                    size="small"
+                                                    circle
+                                                    :loading="variantRunning[id]"
+                                                    :disabled="variantRunning[id]"
+                                                    @click="() => runVariant(id)"
+                                                    :data-testid="getVariantRunTestId(id)"
+                                                >
                                                     <template #icon>
                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                                                             <path d="M8 5v14l11-7z" />
                                                         </svg>
                                                     </template>
                                                 </NButton>
-                                            </template>
-                                                {{ t('test.layout.runThisColumn') }}
-                                            </NTooltip>
+                                            </ThemedTooltip>
                                         </div>
                                     </div>
                                 </div>
@@ -944,14 +942,19 @@ import {
     NRadioButton,
     NTooltip,
 } from "naive-ui";
-import { ExternalLink, FileImport, Plant2 } from '@vicons/tabler'
 import { useI18n } from "vue-i18n";
 import PromptPanelUI from "../PromptPanel.vue";
 import WorkspaceUtilityMenu from '../common/WorkspaceUtilityMenu.vue'
+import ThemedTooltip from '../common/ThemedTooltip.vue'
+import PromptGardenInspirationPopover from '../common/PromptGardenInspirationPopover.vue'
 import PromptGardenImportDialog from '../common/PromptGardenImportDialog.vue'
 import PromptPreviewPanel from "../PromptPreviewPanel.vue";
+import ImageModelQuickSwitch from "../ImageModelQuickSwitch.vue";
 import SelectWithConfig from "../SelectWithConfig.vue";
+import TextModelQuickSwitch from "../TextModelQuickSwitch.vue";
 import TestPanelVersionSelect from '../TestPanelVersionSelect.vue'
+import TestSourceLinkedCard from '../TestSourceLinkedCard.vue'
+import TestVariantSourceTag from '../TestVariantSourceTag.vue'
 import { AnalyzeActionIcon, EvaluationPanel, EvaluationScoreBadge, FocusAnalyzeButton } from '../evaluation'
 import { useLocalPromptPreviewPanel } from '../../composables/prompt/useLocalPromptPreviewPanel'
 import { OptionAccessors } from "../../utils/data-transformer";
@@ -965,7 +968,6 @@ import { getI18nErrorMessage } from '../../utils/error'
 import { withHistorySourceBindingMetadata } from '../../utils/history-source-binding'
 import { resolveSourceAssetRef } from '../../utils/source-asset'
 import { downloadImageSource } from '../../utils/image-download'
-import { openExternalUrl } from '../../utils/open-external-url'
 import { createImagePromptAnalysisVersion } from '../../utils/imagePromptAnalysis'
 import type { PromptGardenImportRequest } from '../../utils/prompt-garden-import'
 import {
@@ -983,6 +985,8 @@ import { useTestVariableManager } from '../../composables/variable/useTestVariab
 import { useSmartVariableValueGeneration } from '../../composables/variable/useSmartVariableValueGeneration'
 import { useEvaluationHandler } from '../../composables/prompt/useEvaluationHandler'
 import { provideEvaluation } from '../../composables/prompt/useEvaluationContext'
+import { useTestSourceAreaFeedback } from '../../composables/prompt/useTestSourceAreaFeedback'
+import { useTestVariantSourceFeedback } from '../../composables/prompt/useTestVariantSourceFeedback'
 import type { VariableManagerHooks } from '../../composables/prompt/useVariableManager'
 import {
     buildPromptExecutionContext,
@@ -1002,6 +1006,7 @@ import {
     type TestVariantId,
 } from '../../stores/session/useImageText2ImageSession'
 import { useImageGeneration } from '../../composables/image/useImageGeneration'
+import { useImageInputPreparation } from '../../composables/image/useImageInputPreparation'
 import {
     useReferenceImageActions,
     type ReferenceActionKind,
@@ -1022,7 +1027,6 @@ import {
 } from './imageText2ImageEvaluation'
 import {
     applyPatchOperationsToText,
-    getEnvVar,
     type ContextMode,
     type ImageModelConfig,
     type Text2ImageRequest,
@@ -1044,6 +1048,7 @@ const router = useRouter()
 
 // Toast
 const toast = useToast();
+const { prepareInputRefs: prepareImageInputRefs } = useImageInputPreparation()
 const {
     tooltipThemeOverrides: referenceActionTooltipThemeOverrides,
     tooltipOverlayStyle: referenceActionTooltipOverlayStyle,
@@ -1134,6 +1139,7 @@ const {
     generateText2Image,
     validateText2ImageRequest,
     loadImageModels,
+    isImageModelListReady,
 } = useImageGeneration()
 
 // 服务引用
@@ -1168,26 +1174,9 @@ const originalPrompt = computed<string>({
 
 const showPromptGardenImport = ref(false)
 
-const isPromptGardenEnabled = computed(() => {
-    const value = getEnvVar('VITE_ENABLE_PROMPT_GARDEN_IMPORT').trim().toLowerCase()
-    return value === '1' || value === 'true'
-})
-
-const promptGardenBaseUrl = computed(() =>
-    getEnvVar('VITE_PROMPT_GARDEN_BASE_URL').trim().replace(/\/$/, ''),
-)
-
-const showPromptGardenEmptyGuide = computed(() =>
-    isPromptGardenEnabled.value && !originalPrompt.value.trim(),
-)
-
 const isPromptGardenGuideDisabled = computed(() =>
     isOptimizing.value || isIterating.value || isAnyVariantRunning.value || isExtractingFromImage.value,
 )
-
-const handlePromptGardenDiscover = () => {
-    void openExternalUrl(promptGardenBaseUrl.value, { logPrefix: 'PromptGarden' })
-}
 
 const handlePromptGardenImportConfirm = async (request: PromptGardenImportRequest) => {
     if (!request.importCode) return false
@@ -1530,8 +1519,8 @@ const versionOptions = computed(() => {
 watch(
     () => imageModelOptions.value,
     (opts) => {
+        if (!isImageModelListReady.value) return
         const fallback = opts?.[0]?.value || ''
-        if (!fallback) return
         const keys = new Set((opts || []).map((o) => o.value))
 
         const legacy = session.selectedImageModelKey
@@ -1576,11 +1565,32 @@ const variantRunning = reactive<Record<TestVariantId, boolean>>({
     d: false,
 })
 
+const { variantSourceFeedback, pulseVariantSource } =
+    useTestVariantSourceFeedback<TestVariantId>(['a', 'b', 'c', 'd'])
+const { sourceAreaFeedback, pulseSourceAreaForSelection } =
+    useTestSourceAreaFeedback()
+
 const isAnyVariantRunning = computed(() =>
     activeVariantIds.value.some((id) => !!variantRunning[id]),
 )
 
 const getVariantLabel = (id: TestVariantId) => ({ a: 'A', b: 'B', c: 'C', d: 'D' }[id])
+
+const handleVariantVersionChange = (id: TestVariantId, value: string | number) => {
+    const selection = value as TestPanelVersionValue
+    variantVersionModels[id].value = selection
+    activateVariantSource(id)
+}
+
+const activateVariantSource = (id: TestVariantId) => {
+    const selection = variantVersionModels[id].value
+    const resolved = resolvePromptForSelection(selection)
+    pulseVariantSource(id, 'change')
+    pulseSourceAreaForSelection(selection, resolved.resolvedVersion, 'change')
+}
+
+const getVariantResolvedVersion = (id: TestVariantId): number =>
+    resolvePromptForSelection(variantVersionModels[id].value).resolvedVersion
 
 const getVariantVersionTestId = (id: TestVariantId) => {
     if (id === 'a') return 'image-text2image-test-original-version-select'
@@ -1743,12 +1753,7 @@ const evaluationHandler = useEvaluationHandler({
             return modelKey
         }
 
-        return (
-            functionModelManager.evaluationModel.value ||
-            selectedTextModelKey.value ||
-            functionModelManager.effectiveEvaluationModel.value ||
-            ''
-        )
+        return functionModelManager.resolveEvaluationModelKey(selectedTextModelKey.value)
     },
     functionMode: computed(() => 'image'),
     subMode: computed(() => 'text2image'),
@@ -2111,6 +2116,8 @@ const getVariantRequest = (id: TestVariantId): Text2ImageRequest | null => {
     const resolved = resolvePromptForSelection(variantVersionModels[id].value)
     if (!resolved.text?.trim()) {
         toast.error(t('imageWorkspace.generation.missingRequiredFields'))
+        pulseVariantSource(id, 'error')
+        pulseSourceAreaForSelection(variantVersionModels[id].value, resolved.resolvedVersion, 'error')
         return null
     }
 
@@ -2151,6 +2158,16 @@ const queueSessionSave = () => {
         .catch((e) => {
             console.error('[ImageText2ImageWorkspace] Failed to persist image session:', e)
         })
+    return sessionSaveChain
+}
+
+const saveSessionAfterHistoryCommit = async (reason: string) => {
+    try {
+        await session.saveSession()
+    } catch (e) {
+        console.error(`[ImageText2ImageWorkspace] Failed to persist image session after ${reason}:`, e)
+        toast.warning(t('toast.warning.saveHistoryFailed'))
+    }
 }
 
 const runVariant = async (
@@ -2302,6 +2319,7 @@ const handleSaveLocalEdit = async (payload: { note?: string }) => {
             chainId: chain.chainId,
             versionId: chain.currentRecord.id,
         })
+        await saveSessionAfterHistoryCommit('local edit commit')
 
         window.dispatchEvent(new CustomEvent('prompt-optimizer:history-refresh'))
         toast.success(t('toast.success.localEditSaved'))
@@ -2415,26 +2433,6 @@ const referenceActionStatusLabelKey = computed(() => {
     return ''
 })
 
-const readImageFileAsBase64 = (file: File): Promise<{ base64: string; mimeType: string }> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader()
-
-        reader.onload = () => {
-            const dataUrl = reader.result as string
-            const base64 = dataUrl.split(',')[1]
-            resolve({
-                base64,
-                mimeType: file.type || 'image/png',
-            })
-        }
-
-        reader.onerror = () => {
-            reject(new Error(t('imageWorkspace.upload.readFailed')))
-        }
-
-        reader.readAsDataURL(file)
-    })
-
 const resolveReferenceActionMode = (
     actionKind: ReferenceActionKind,
 ): ReferenceApplicationMode => (actionKind === 'style-learn' ? 'migrate' : 'replicate')
@@ -2519,22 +2517,18 @@ const handleReferenceImageFileChange = async (event: Event) => {
         return
     }
 
-    if (!/image\/(png|jpeg)/.test(file.type)) {
-        toast.error(t('imageWorkspace.upload.fileTypeNotSupported'))
+    const preparedInputs = await prepareImageInputRefs([file])
+    if (!preparedInputs) {
         return
     }
-
-    if (file.size > 10 * 1024 * 1024) {
-        toast.error(t('imageWorkspace.upload.fileTooLarge'))
-        return
-    }
+    const preparedInput = preparedInputs[0]
 
     const nextActionKind = referenceAction.actionKind
     const previewToken = createReferenceActionPreviewToken()
     beginReferenceActionTask()
 
     try {
-        const { base64, mimeType } = await readImageFileAsBase64(file)
+        const { b64: base64, mimeType = 'image/png' } = preparedInput
         referenceAction.setSourceImagePreview(`data:${mimeType || 'image/png'};base64,${base64}`)
         referenceImagePayload.value = {
             base64,
@@ -2755,6 +2749,7 @@ const refreshImageModels = async () => {
         }))
 
         if (!imageModels.value.length) {
+            if (isImageModelListReady.value) selectedImageModelKey.value = ''
             return
         }
 
@@ -2801,6 +2796,7 @@ const createHistoryRecord = async () => {
             chainId: newRecord.chainId,
             versionId: newRecord.currentRecord.id,
         })
+        await saveSessionAfterHistoryCommit('optimization commit')
 
         window.dispatchEvent(new CustomEvent('prompt-optimizer:history-refresh'))
     } catch (e) {
@@ -2911,6 +2907,7 @@ const handleIteratePrompt = async (payload: {
                                 chainId: updatedChain.chainId,
                                 versionId: updatedChain.currentRecord.id,
                             })
+                            await saveSessionAfterHistoryCommit('iteration commit')
                             window.dispatchEvent(new CustomEvent('prompt-optimizer:history-refresh'))
                         } else {
                             await createHistoryRecord()
@@ -3162,56 +3159,6 @@ onUnmounted(() => {
 
 .reference-action-status {
     border-radius: 999px;
-}
-
-.prompt-garden-empty-guide {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 10px;
-    align-items: center;
-    padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--n-success-color) 10%, var(--n-border-color));
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--n-success-color) 3%, var(--n-color));
-}
-
-.prompt-garden-empty-guide__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    color: color-mix(in srgb, var(--n-success-color) 76%, var(--n-text-color-3));
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--n-success-color) 7%, transparent);
-}
-
-.prompt-garden-empty-guide__copy {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-}
-
-.prompt-garden-empty-guide__hint {
-    line-height: 1.45;
-}
-
-.prompt-garden-empty-guide__actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
-}
-
-@media (max-width: 720px) {
-    .prompt-garden-empty-guide {
-        grid-template-columns: auto minmax(0, 1fr);
-    }
-
-    .prompt-garden-empty-guide__actions {
-        grid-column: 1 / -1;
-        justify-content: flex-start;
-    }
 }
 
 .split-divider {

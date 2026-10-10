@@ -51,6 +51,22 @@ export type {
 } from './services/llm/types'
 export { LLMService, createLLMService } from './services/llm/service'
 export { TextAdapterRegistry, createTextAdapterRegistry } from './services/llm/adapters/registry'
+export {
+  CHROME_BUILT_IN_MODEL_ID,
+  CHROME_BUILT_IN_AUTO_ENABLE_SOURCE,
+  CHROME_BUILT_IN_PROVIDER_ID,
+  canAutoEnableChromeBuiltInConfig,
+  checkChromeBuiltInAvailability,
+  markChromeBuiltInAutoEnabled,
+  markChromeBuiltInUserConfigured,
+  prepareChromeBuiltInModel
+} from './services/llm/chrome-built-in'
+export type {
+  ChromeBuiltInAvailability,
+  ChromeBuiltInDownloadProgress,
+  ChromeLanguageModelLanguageOptions,
+  ChromeBuiltInStatus
+} from './services/llm/chrome-built-in'
 export { ElectronLLMProxy } from './services/llm/electron-proxy'
 export * from './services/llm/errors'
 
@@ -58,6 +74,7 @@ export * from './services/llm/errors'
 export { ModelManager, createModelManager } from './services/model/manager'
 export * from './services/model/types'
 export * from './services/model/defaults'
+export * from './services/model/metadata-resolver'
 export * from './services/model/parameter-schema'
 export * from './services/model/parameter-utils'
 export * from './services/model/advancedParameterDefinitions'
@@ -82,6 +99,7 @@ export type {
   ImageResultItem,
   ImageProgressHandlers,
   ImageModelConfig,
+  ImageModelConfigInput,
   IImageModelManager,
   IImageProviderAdapter,
   IImageAdapterRegistry,
@@ -99,6 +117,11 @@ export type {
 } from './services/image/types'
 // 导出图像存储相关函数和类型
 export { isImageRef, createImageRef } from './services/image/types'
+export {
+  DEFAULT_IMAGE_INPUT_POLICY,
+  estimateBase64Bytes,
+  normalizeImageMimeType,
+} from './services/image/input-normalizer'
 export { ImageStorageService, createImageStorageService } from './services/image/storage'
 
 // 导出存储相关
@@ -162,6 +185,16 @@ export {
   MAX_SUFFIX_LENGTH
 } from './utils/environment'
 export type { CustomModelEnvConfig, ValidatedCustomModelEnvConfig, ValidationResult } from './utils/environment'
+export {
+  normalizeCustomRequestHeaders,
+  validateCustomRequestHeaders
+} from './utils/custom-request-headers'
+export type {
+  CustomRequestHeaders,
+  CustomRequestHeaderInput,
+  CustomRequestHeaderValidationError,
+  CustomRequestHeaderValidationResult
+} from './utils/custom-request-headers'
 export type { LLMValidationResult, ValidationError, ValidationWarning } from './services/model/validation'
 export { validateCustomModelConfig } from './utils/environment'
 
@@ -250,6 +283,7 @@ export * from './services/evaluation/rewrite-from-evaluation'
 // 导出图像理解服务相关
 export * from './services/image-understanding/types'
 export { ImageUnderstandingService, createImageUnderstandingService } from './services/image-understanding/service'
+export { ElectronImageUnderstandingServiceProxy } from './services/image-understanding/electron-proxy'
 
 // 🆕 导出变量提取服务相关
 export * from './services/variable-extraction/types'

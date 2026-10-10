@@ -11,9 +11,11 @@
  * @param sessionStore - Session store 实例（ImageText2ImageSession / ImageImage2ImageSession）
  */
 import { computed, ref, watch, type Ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { AppServices } from '../../types/services'
 import type { ModelSelectOption } from '../../types/select-options'
 import { DataTransformer } from '../../utils/data-transformer'
+import { getProviderDisplayName, getTextModelConfigDisplayName } from '../../utils/provider-display'
 
 type WorkspaceTextModelSessionStore = {
   selectedTextModelKey: string
@@ -24,6 +26,7 @@ export function useWorkspaceTextModelSelection<T extends WorkspaceTextModelSessi
   services: Ref<AppServices | null>,
   sessionStore: T
 ) {
+  const { t } = useI18n()
   const textModelOptions = ref<ModelSelectOption[]>([])
 
   const selectedTextModelKey = computed<string>({
@@ -41,20 +44,23 @@ export function useWorkspaceTextModelSelection<T extends WorkspaceTextModelSessi
   }
 
   const refreshTextModels = async () => {
+    const token = ++refreshToken
     const mgr = services.value?.modelManager
     if (!mgr) {
       textModelOptions.value = []
       return
     }
 
-    const token = ++refreshToken
     try {
       await ensureInitializedIfSupported(mgr)
 
       const enabledModels = await mgr.getEnabledModels()
       if (token !== refreshToken) return
 
-      textModelOptions.value = DataTransformer.modelsToSelectOptions(enabledModels)
+      textModelOptions.value = DataTransformer.modelsToSelectOptions(enabledModels, {
+        getProviderName: (model) => getProviderDisplayName(model.providerMeta, t),
+        getModelName: (model) => getTextModelConfigDisplayName(model, t)
+      })
 
       const fallback = textModelOptions.value[0]?.value || ''
       const keys = new Set(textModelOptions.value.map(opt => opt.value))
@@ -62,10 +68,11 @@ export function useWorkspaceTextModelSelection<T extends WorkspaceTextModelSessi
 
       const invalid = current && !keys.has(current)
       const emptyNeedsFallback = !current && !!fallback
-      if ((invalid || emptyNeedsFallback) && fallback) {
+      if (invalid || emptyNeedsFallback) {
         selectedTextModelKey.value = fallback
       }
     } catch (error) {
+      if (token !== refreshToken) return
       console.error('[useWorkspaceTextModelSelection] refreshTextModels failed:', error instanceof Error ? error.message : String(error), error)
       textModelOptions.value = []
     }

@@ -85,11 +85,18 @@ const messages = {
     "upload": {
       "title": "Upload Reference Image",
       "dragText": "Click or drag to upload image",
-      "fileRequirements": "Supports PNG/JPEG format, file size not exceed 10MB",
+      "fileRequirements": "Supports PNG/JPEG up to 50MB; large images are prepared automatically",
       "uploadFailed": "Upload failed",
       "uploadSuccess": "Upload success",
+      "preparedSuccess": "Image prepared for model compatibility: {before} → {after}",
+      "preparedBatchSuccess": "Prepared {count} images for model compatibility",
+      "processingFailed": "Image preparation failed. Please try a smaller image.",
+      "confirmTitle": "Confirm image processing",
+      "confirmDescription": "To meet model input limits, {count} image(s) will be resized or re-encoded. The resulting file size may increase slightly.",
+      "confirmItem": "{name}: {beforeSize}, {beforeDimensions} → {afterSize}, {afterDimensions}",
+      "confirmAction": "Process and continue",
       "fileTypeNotSupported": "Only PNG/JPEG is supported",
-      "fileTooLarge": "File size cannot exceed 10MB",
+      "fileTooLarge": "The selected image cannot exceed 50MB",
       "readFailed": "Failed to read file, please try again"
     }
   },
@@ -197,7 +204,15 @@ const messages = {
       "dynamicLoaded": "Dynamic models loaded",
       "dynamicFailed": "Failed to load dynamic models, fell back to static list",
       "connectionRequired": "Please fill and validate connection first",
-      "refreshFailed": "Failed to refresh models"
+      "refreshFailed": "Failed to refresh models",
+      "quickSwitch": {
+        "title": "Switch current image model",
+        "placeholder": "Select image model",
+        "modelTagTitle": "Click to switch the model for this image configuration",
+        "fetchFailed": "Failed to fetch online image models: {error}. You can still choose a local default model.",
+        "updateSuccess": "Switched to {model}",
+        "updateFailed": "Failed to switch image model: {error}"
+      }
     },
     "parameters": {
       "noParameters": "No configurable parameters for this model",
@@ -208,6 +223,14 @@ const messages = {
       "size": {
         "label": "Image Size",
         "description": "Generated image resolution/size, e.g., 1024x1024"
+      },
+      "aspect_ratio": {
+        "label": "Aspect Ratio",
+        "description": "Generated image aspect ratio"
+      },
+      "resolution": {
+        "label": "Resolution",
+        "description": "Generated image resolution tier"
       },
       "quality": {
         "label": "Image Quality",
@@ -313,6 +336,13 @@ const messages = {
     "devEnvironment": "Development Environment: Update checking is disabled",
     "clickToCheck": "Click to check for updates",
     "viewOnGitHub": "View on GitHub",
+    "manualUpdateTitle": "macOS currently requires a manual update",
+    "manualUpdateDescription": "The current macOS build is not signed with an Apple Developer ID, so it cannot be installed through the in-app updater. Open the release page, download the DMG for this Mac, quit the app, then drag it into Applications and choose Replace. If macOS blocks the first launch, allow it in System Settings → Privacy & Security.",
+    "updatePolicyUnavailableTitle": "A manual update is currently required",
+    "updatePolicyUnavailableDescription": "The app could not confirm whether this build supports in-app installation. To avoid a failed update, open the release page and install the package manually.",
+    "openReleasePage": "Open GitHub Release",
+    "openReleaseFailed": "Could not open the release page. Please try again later.",
+    "releasePageUnavailable": "The release page address is unavailable. Check for updates again and retry.",
     "noReleasesFound": "No releases found. This project may not have published any versions yet.",
     "noStableReleasesFound": "No stable releases found. Only prerelease versions may be available."
   }
